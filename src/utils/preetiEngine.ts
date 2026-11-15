@@ -150,11 +150,7 @@ const PREETI_MULTI_TO_UNICODE: Array<[string, string]> = [
   ['em', 'झ'],
   ['km', 'फ'],
   ['If', 'क्ष'],
-  ['vf', 'ख'],
-  ['wf', 'ध'],
-  ['ef', 'भ'],
   ['if', 'ष'],
-  ['yf', 'थ'],
   ['0f', 'ण'],
   ['`f', 'ञ'],
   ['~f', 'ञ'],
@@ -162,10 +158,6 @@ const PREETI_MULTI_TO_UNICODE: Array<[string, string]> = [
   ['/"', 'रू'],
   ['Å', 'हृ'],
   // Preeti 'L' (ी) carries its own vertical bar, so half-stem consonants + L form full Consonant+ी
-  ['vL', 'खी'],
-  ['wL', 'धी'],
-  ['eL', 'भी'],
-  ['yL', 'थी'],
   ['iL', 'षी'],
   ['0L', 'णी'],
   ['`L', 'ञी'],
@@ -199,7 +191,7 @@ const PREETI_SINGLE_TO_UNICODE: Record<string, string> = {
   // Consonants & half-forms
   s: 'क',
   S: 'क्',
-  v: 'ख्',
+  v: 'ख',
   V: 'ख्',
   u: 'ग',
   U: 'ग्',
@@ -219,10 +211,10 @@ const PREETI_SINGLE_TO_UNICODE: Record<string, string> = {
   '0': 'ण्',
   t: 'त',
   T: 'त्',
-  y: 'थ्',
+  y: 'थ',
   Y: 'थ्',
   b: 'द',
-  w: 'ध्',
+  w: 'ध',
   W: 'ध्',
   g: 'न',
   G: 'न्',
@@ -230,7 +222,7 @@ const PREETI_SINGLE_TO_UNICODE: Record<string, string> = {
   K: 'प्',
   a: 'ब',
   A: 'ब्',
-  e: 'भ्',
+  e: 'भ',
   E: 'भ्',
   d: 'म',
   D: 'म्',
@@ -521,7 +513,7 @@ const UNICODE_CONJUNCTS_TO_PREETI: Array<[string, string]> = [
 
 const UNICODE_CONSONANT_HALF_TO_PREETI: Record<string, string> = {
   क: 'S',
-  ख: 'v',
+  ख: 'V',
   ग: 'U',
   घ: '£',
   ङ: 'ª\\',
@@ -536,14 +528,14 @@ const UNICODE_CONSONANT_HALF_TO_PREETI: Record<string, string> = {
   ढ: '9\\',
   ण: '0',
   त: 'T',
-  थ: 'y',
+  थ: 'Y',
   द: 'b\\',
-  ध: 'w',
+  ध: 'W',
   न: 'G',
   प: 'K',
   फ: 'km\\',
   ब: 'A',
-  भ: 'e',
+  भ: 'E',
   म: 'D',
   य: 'o\\',
   र: '/',
@@ -569,7 +561,7 @@ const UNICODE_SINGLE_TO_PREETI: Record<string, string> = {
   औ: 'cf}',
 
   क: 's',
-  ख: 'vf',
+  ख: 'v',
   ग: 'u',
   घ: '3',
   ङ: 'ª',
@@ -584,14 +576,14 @@ const UNICODE_SINGLE_TO_PREETI: Record<string, string> = {
   ढ: '9',
   ण: '0f',
   त: 't',
-  थ: 'yf',
+  थ: 'y',
   द: 'b',
-  ध: 'wf',
+  ध: 'w',
   न: 'g',
   प: 'k',
   फ: 'km',
   ब: 'a',
-  भ: 'ef',
+  भ: 'e',
   म: 'd',
   य: 'o',
   र: '/',
@@ -765,7 +757,7 @@ export function unicodeToPreeti(rawInput: string, targetFont: NepaliFontId = 'pr
 
     if (DEV_CONSONANTS.has(ch) && out[i + 1] === '\u094D') {
       if (out[i + 2] === 'र') {
-        if (['ख', 'ण', 'थ', 'ध', 'भ', 'ष'].includes(ch)) {
+        if (['ण', 'ष'].includes(ch)) {
           preeti += UNICODE_CONSONANT_HALF_TO_PREETI[ch] || UNICODE_SINGLE_TO_PREETI[ch];
         } else {
           preeti += UNICODE_SINGLE_TO_PREETI[ch] ?? ch;

@@ -10,7 +10,7 @@ interface GuideAndFaqProps {
 
 const PREETI_KEY_GUIDE = [
   {key: 's', char: 'क', example: 'sdn → कमल'},
-  {key: 'vf', char: 'ख', example: 'vfgf → खाना'},
+  {key: 'v', char: 'ख', example: 'vfgf → खाना'},
   {key: 'u', char: 'ग', example: 'ufpF → गाउँ'},
   {key: '3', char: 'घ', example: '3/ → घर'},
   {key: 'ª (Alt+0170)', char: 'ङ', example: 'अङ्ग'},
@@ -20,8 +20,8 @@ const PREETI_KEY_GUIDE = [
   {key: 'em (Alt+0180)', char: 'झ', example: 'em08f → झण्डा'},
   {key: '6 / 7 / 8 / 9', char: 'ट / ठ / ड / ढ', example: '6f]kL → टोपी'},
   {key: '0f', char: 'ण', example: 'u0f]z → गणेश'},
-  {key: 't / yf / b / wf / g', char: 'त / थ / द / ध / न', example: 'g]kfn → नेपाल'},
-  {key: 'k / km / a / ef / d', char: 'प / फ / ब / भ / म', example: 'kmn → फल'},
+  {key: 't / y / b / w / g', char: 'त / थ / द / ध / न', example: 'tn → तल, bn → दल'},
+  {key: 'k / km / a / e / d', char: 'प / फ / ब / भ / म', example: 'kmn → फल'},
   {key: 'o / / / n / j', char: 'य / र / ल / व', example: 'ljBf → विद्या'},
   {key: 'z / if / ; / x', char: 'श / ष / स / ह', example: 'b]z → देश'},
   {key: 'If / q / 1 / >', char: 'क्ष / त्र / ज्ञ / श्र', example: '>L → श्री'},
@@ -69,8 +69,8 @@ const FAQS = [
   {
     qEn: 'Why do Preeti, Kantipur, or PCS Nepali outputs look like English characters?',
     qNe: 'Preeti वा Kantipur मा रूपान्तरण गर्दा अंग्रेजी अक्षर किन देखिन्छ?',
-    aEn: 'Legacy Nepali TrueType fonts map Devanagari letters onto standard keyboard codes (for example, नेपाल = g]kfn). Copy the converted text and paste it into Word, Photoshop, or InDesign with the matching Nepali font selected.',
-    aNe: 'Preeti, Kantipur वा PCS Nepali जस्ता पुरानो फन्टले अंग्रेजी किबोर्ड कोड (जस्तै नेपाल = g]kfn) प्रयोग गर्छन्। नतिजा कपी गरेर MS Word वा Photoshop मा राखी Preeti फन्ट छान्दा सही नेपाली अक्षर देखिन्छ।',
+    aEn: 'Legacy Nepali TrueType fonts map Devanagari letters onto standard English keyboard keys. Copy the converted font text and paste it into MS Word, Photoshop, or InDesign with the matching Nepali font selected.',
+    aNe: 'Preeti, Kantipur वा PCS Nepali जस्ता पुरानो फन्टले अंग्रेजी किबोर्डका कुञ्जी प्रयोग गरी नेपाली अक्षर बनाउँछन्। यहाँबाट कपी गरिएको नतिजा MS Word वा Photoshop मा राखेर Preeti फन्ट छान्दा सही नेपाली अक्षर देखिन्छ।',
   },
 ];
 
@@ -107,9 +107,9 @@ export function GuideAndFaq({
       {/* Supported Fonts & Keyboard Cheat Sheet */}
       <section
         id="typing-guide"
-        className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
           <div>
             <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               {lang === 'ne'
@@ -168,18 +168,15 @@ export function GuideAndFaq({
                 lang === 'ne' ? 'अक्षर वा 0170 खोज्नुहोस्...' : 'Filter keys or 0170...'
               }
               aria-label="Filter typing keys"
-              className="h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="h-9 rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
         </div>
 
-        {/* Supported Font Directory Summary */}
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Clean Unboxed Supported Font Index */}
+        <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 border-b border-slate-200/80 pb-4 sm:grid-cols-4 dark:border-slate-800">
           {NEPALI_FONTS.map((f) => (
-            <div
-              key={f.id}
-              className="rounded-lg border border-slate-200/80 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-950/60"
-            >
+            <div key={f.id}>
               <div className="text-xs font-semibold text-slate-900 dark:text-white">
                 {lang === 'ne' ? f.nepaliName : f.name}
               </div>
@@ -212,13 +209,13 @@ export function GuideAndFaq({
                   key={row.key}
                   className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                 >
-                  <td className="font-mono-tabular py-2 pr-4 font-medium text-slate-800 dark:text-slate-200">
+                  <td className="font-mono-tabular py-2.5 pr-4 font-medium text-slate-800 dark:text-slate-200">
                     {row.key}
                   </td>
-                  <td className="font-nepali py-2 pr-4 text-sm font-semibold text-red-700 dark:text-red-400">
+                  <td className="font-nepali py-2.5 pr-4 text-sm font-semibold text-red-700 dark:text-red-400">
                     {row.char}
                   </td>
-                  <td className="font-nepali py-2 text-slate-600 dark:text-slate-400">
+                  <td className="font-nepali py-2.5 text-slate-600 dark:text-slate-400">
                     {row.example}
                   </td>
                 </tr>
@@ -231,7 +228,7 @@ export function GuideAndFaq({
       {/* FAQ Section */}
       <section
         id="faq"
-        className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
       >
         <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
           {lang === 'ne'
@@ -310,14 +307,7 @@ export function GuideAndFaq({
                 be cleared anytime.
               </p>
               <p>
-                <strong>3. Advertising &amp; Cookies:</strong>{' '}
-                <code className="font-mono-tabular">unicode.pabansubedi.com.np</code>{' '}
-                may use Google AdSense to display advertisements. Third-party vendors,
-                including Google, use cookies to serve ads based on prior visits. You may
-                opt out of personalized advertising through Google Ads Settings.
-              </p>
-              <p>
-                <strong>4. Usage Terms:</strong> This tool is provided free for personal,
+                <strong>3. Usage Terms:</strong> This tool is provided free for personal,
                 educational, and office Nepali typesetting use.
               </p>
             </div>

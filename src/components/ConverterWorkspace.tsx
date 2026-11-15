@@ -6,7 +6,6 @@ import {
   Copy,
   Download,
   FileText,
-  History,
   Maximize2,
   Minimize2,
   Printer,
@@ -46,10 +45,7 @@ interface ConverterWorkspaceProps {
   onModeChange: (mode: WorkspaceMode) => void;
   lang: 'en' | 'ne';
   bsDateText: string;
-  history: HistoryItem[];
   onSaveHistory: (item: HistoryItem) => void;
-  onRemoveHistoryItem: (id: string) => void;
-  onClearHistory: () => void;
   restoreRequest?: {item: HistoryItem; nonce: number} | null;
   onPrintOutput?: (text: string) => void;
 }
@@ -80,7 +76,7 @@ const QUICK_SYMBOLS = [
 ];
 
 const SAMPLE_PREETI =
-  'g]kfn Ps ;\'Gb/ lxdfnL b]z xf] . k|ljlwf / 1fgsf] ljsf;n] xfd|f] ;dfhnfO{ cufl8 a9fpF5 .';
+  'g]kfn Ps ;\'Gb/ lxdfnL b]z xf] . k|ljlw / 1fgsf] ljsf;n] xfd|f] ;dfhnfO{ cufl8 a9fpF5 .';
 const SAMPLE_UNICODE =
   'नेपाल एक सुन्दर हिमाली देश हो । प्रविधि र ज्ञानको विकासले हाम्रो समाजलाई अगाडि बढाउँछ ।';
 const SAMPLE_ROMANIZED =
@@ -91,10 +87,7 @@ export function ConverterWorkspace({
   onModeChange,
   lang,
   bsDateText,
-  history,
   onSaveHistory,
-  onRemoveHistoryItem,
-  onClearHistory,
   restoreRequest,
   onPrintOutput,
 }: ConverterWorkspaceProps) {
@@ -114,7 +107,6 @@ export function ConverterWorkspace({
   const [expanded, setExpanded] = useState<boolean>(false);
   const [showAltPalette, setShowAltPalette] = useState<boolean>(false);
   const [altDigitsPreview, setAltDigitsPreview] = useState<string>('');
-  const [showHistory, setShowHistory] = useState<boolean>(false);
   const [undoSnapshot, setUndoSnapshot] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -356,15 +348,26 @@ export function ConverterWorkspace({
   const handleSwap = () => {
     if (mode === 'romanized') return;
     resetPreetiBuffer();
+    setUndoSnapshot(inputText);
     const nextInput = activeOutput;
     if (mode === 'preeti-to-unicode') {
+      skipNextModeResetRef.current = true;
       onModeChange('unicode-to-preeti');
+      setFromFont('unicode');
+      setToFont('preeti');
     } else if (mode === 'unicode-to-preeti') {
+      skipNextModeResetRef.current = true;
       onModeChange('preeti-to-unicode');
+      setFromFont('preeti');
+      setToFont('unicode');
+      setPreetiVisualTyping(false);
     } else {
       const prevFrom = fromFont;
       setFromFont(toFont);
       setToFont(prevFrom);
+      if (toFont !== 'unicode') {
+        setPreetiVisualTyping(false);
+      }
     }
     setInputText(nextInput);
     if (!autoConvert) {
@@ -773,19 +776,15 @@ export function ConverterWorkspace({
   const sourceLabel =
     mode === 'romanized'
       ? lang === 'ne'
-        ? 'रोमन नेपाली टाइप गर्नुहोस्'
-        : 'Romanized Nepali Input'
+        ? 'रोमन नेपाली टाइप'
+        : 'Romanized Input'
       : mode === 'preeti-to-unicode'
         ? lang === 'ne'
-          ? preetiVisualTyping
-            ? 'प्रीति किबोर्ड (नेपालीमा देखिने)'
-            : 'प्रीति कोड (Preeti Input)'
-          : preetiVisualTyping
-            ? 'Preeti Typing (Nepali View)'
-            : 'Preeti Code Input'
+          ? 'प्रीति इनपुट'
+          : 'Preeti Input'
         : mode === 'unicode-to-preeti'
           ? lang === 'ne'
-            ? 'युनिकोड (Unicode) पाठ'
+            ? 'युनिकोड पाठ'
             : 'Unicode Input'
           : `${NEPALI_FONTS.find((f) => f.id === fromFont)?.name ?? fromFont}`;
 
@@ -796,23 +795,23 @@ export function ConverterWorkspace({
         : 'Nepali Unicode Output'
       : mode === 'unicode-to-preeti'
         ? lang === 'ne'
-          ? 'प्रीति (Preeti) नतिजा'
-          : 'Preeti Output'
+          ? 'प्रीति फन्ट नतिजा'
+          : 'Preeti Font Output'
         : `${NEPALI_FONTS.find((f) => f.id === toFont)?.name ?? toFont} Output`;
 
   return (
     <section
       id="converter"
       aria-label="Nepali Font and Unicode Converter"
-      className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
     >
-      {/* Mode Switcher + Secondary Controls */}
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+      {/* Top Mode Switcher & Studio View Controls */}
+      <div className="flex flex-col gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div
             role="tablist"
             aria-label="Converter Mode"
-            className="grid w-full grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 sm:flex sm:w-auto sm:flex-wrap dark:bg-slate-800/80"
+            className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100/90 p-1 sm:flex sm:w-auto sm:flex-wrap dark:bg-slate-800/80"
           >
             {modeTabs.map((tab) => {
               const active = mode === tab.id;
@@ -823,7 +822,7 @@ export function ConverterWorkspace({
                   role="tab"
                   aria-selected={active}
                   onClick={() => onModeChange(tab.id)}
-                  className={`min-h-[42px] whitespace-nowrap shrink-0 rounded-md px-3 py-2 text-xs sm:text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
+                  className={`min-h-[40px] whitespace-nowrap shrink-0 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
                     active
                       ? 'bg-white text-red-700 shadow-xs dark:bg-slate-900 dark:text-red-400'
                       : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
@@ -836,7 +835,7 @@ export function ConverterWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200">
+            <label className="inline-flex min-h-[38px] cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100/80 dark:text-slate-300 dark:hover:bg-slate-800">
               <input
                 type="checkbox"
                 checked={autoConvert}
@@ -845,33 +844,56 @@ export function ConverterWorkspace({
                   setAutoConvert(checked);
                   if (!checked) setManualOutput(computedOutput);
                 }}
-                className="h-4 w-4 accent-red-700"
+                className="h-4 w-4 rounded accent-red-700"
               />
               <span className="whitespace-nowrap">
                 {lang === 'ne' ? 'तुरुन्त रूपान्तरण' : 'Live Convert'}
               </span>
             </label>
 
-            <button
-              type="button"
-              onClick={() => setShowHistory((v) => !v)}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <History className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="whitespace-nowrap">
-                {lang === 'ne' ? `इतिहास (${history.length})` : `History (${history.length})`}
-              </span>
-            </button>
+            <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2.5 dark:border-slate-700">
+              <label
+                htmlFor="editor-font-size"
+                className="text-xs font-medium text-slate-500 dark:text-slate-400"
+              >
+                {lang === 'ne' ? 'साइज' : 'Size'}
+              </label>
+              <select
+                id="editor-font-size"
+                value={fontSize}
+                onChange={(e) => setFontSize(Number(e.target.value))}
+                className="h-8 rounded-lg border border-slate-200 bg-slate-50/70 px-2 text-xs font-medium text-slate-700 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              >
+                <option value={14}>14px</option>
+                <option value={17}>17px</option>
+                <option value={20}>20px</option>
+                <option value={24}>24px</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                aria-label={expanded ? 'Compact editor height' : 'Expand editor height'}
+                title={expanded ? 'Compact height' : 'Expand height'}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+              >
+                {expanded ? (
+                  <Minimize2 className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Multi-Font Selectors or Romanized Quick Chips */}
+        {/* Multi-Font Selectors or Romanized Quick Examples */}
         {mode === 'multi-font' && (
           <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
             <div>
               <label
                 htmlFor="source-font-select"
-                className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400"
+                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
               >
                 {lang === 'ne' ? 'स्रोत फन्ट (From)' : 'Source Font'}
               </label>
@@ -882,7 +904,7 @@ export function ConverterWorkspace({
                   resetPreetiBuffer();
                   setFromFont(e.target.value as NepaliFontId);
                 }}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-900 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 {NEPALI_FONTS.map((font) => (
                   <option key={font.id} value={font.id}>
@@ -896,7 +918,7 @@ export function ConverterWorkspace({
               type="button"
               onClick={handleSwap}
               aria-label="Swap source and target fonts"
-              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-red-600 sm:w-10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-red-600 sm:w-10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -904,7 +926,7 @@ export function ConverterWorkspace({
             <div>
               <label
                 htmlFor="target-font-select"
-                className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400"
+                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
               >
                 {lang === 'ne' ? 'लक्ष्य फन्ट (To)' : 'Target Font'}
               </label>
@@ -912,7 +934,7 @@ export function ConverterWorkspace({
                 id="target-font-select"
                 value={toFont}
                 onChange={(e) => setToFont(e.target.value as NepaliFontId)}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 focus-visible:outline-2 focus-visible:outline-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-900 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               >
                 {NEPALI_FONTS.map((font) => (
                   <option key={font.id} value={font.id}>
@@ -925,8 +947,8 @@ export function ConverterWorkspace({
         )}
 
         {mode === 'romanized' && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-slate-600 dark:text-slate-400">
-            <span className="font-medium text-slate-700 dark:text-slate-300">
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs text-slate-500 dark:text-slate-400">
+            <span className="mr-1 font-medium text-slate-700 dark:text-slate-300">
               {lang === 'ne' ? 'उदाहरण:' : 'Try:'}
             </span>
             {ROMANIZED_EXAMPLES.map((ex) => (
@@ -934,7 +956,7 @@ export function ConverterWorkspace({
                 key={ex.roman}
                 type="button"
                 onClick={() => setInputText(ex.roman)}
-                className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-red-300 hover:text-red-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:text-red-400"
+                className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-red-50 hover:text-red-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               >
                 {ex.roman}
               </button>
@@ -943,50 +965,23 @@ export function ConverterWorkspace({
         )}
       </div>
 
-      {/* Action Bar Above Textareas */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Quiet Ghost Toolbar Above Unified Studio */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={handleLoadSample}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Sparkles className="h-3.5 w-3.5 text-red-700 dark:text-red-400" aria-hidden="true" />
             <span>{lang === 'ne' ? 'नमुना पाठ' : 'Sample'}</span>
           </button>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,text/plain"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-          >
-            <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{lang === 'ne' ? '.TXT अपलोड' : 'Upload .TXT'}</span>
-          </button>
-
-          {mode !== 'romanized' && (
-            <button
-              type="button"
-              onClick={handleSwap}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{lang === 'ne' ? 'साटासाट' : 'Swap'}</span>
-            </button>
-          )}
-
           <select
             aria-label={lang === 'ne' ? 'नेपाली निवेदन टेम्प्लेट' : 'Insert Nepali template'}
             value=""
             onChange={(e) => handleApplyTemplate(e.target.value)}
-            className="h-10 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            className="h-9 rounded-lg border border-slate-200/90 bg-slate-50/70 px-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200"
           >
             <option value="">
               {lang === 'ne' ? 'निवेदन / टेम्प्लेट...' : 'Templates...'}
@@ -998,14 +993,41 @@ export function ConverterWorkspace({
             ))}
           </select>
 
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".txt,text/plain"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+          >
+            <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{lang === 'ne' ? '.TXT अपलोड' : 'Upload .TXT'}</span>
+          </button>
+
+          {mode !== 'romanized' && (
+            <button
+              type="button"
+              onClick={handleSwap}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{lang === 'ne' ? 'साटासाट' : 'Swap'}</span>
+            </button>
+          )}
+
           {undoSnapshot !== null && (
             <button
               type="button"
               onClick={handleUndo}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{lang === 'ne' ? 'फिर्ता (Undo)' : 'Undo'}</span>
+              <span>{lang === 'ne' ? 'फिर्ता' : 'Undo'}</span>
             </button>
           )}
 
@@ -1017,177 +1039,163 @@ export function ConverterWorkspace({
               setInputText('');
               setManualOutput('');
             }}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-slate-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{lang === 'ne' ? 'खाली' : 'Clear'}</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <label
-            htmlFor="editor-font-size"
-            className="text-xs font-medium text-slate-500 dark:text-slate-400"
-          >
-            {lang === 'ne' ? 'साइज:' : 'Size:'}
-          </label>
-          <select
-            id="editor-font-size"
-            value={fontSize}
-            onChange={(e) => setFontSize(Number(e.target.value))}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
-          >
-            <option value={14}>14px</option>
-            <option value={17}>17px</option>
-            <option value={20}>20px</option>
-            <option value={24}>24px</option>
-          </select>
-
+        {!autoConvert && (
           <button
             type="button"
-            onClick={() => setExpanded((v) => !v)}
-            aria-label={expanded ? 'Compact editor height' : 'Expand editor height'}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            onClick={handleManualConvert}
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-red-700 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
           >
-            {expanded ? (
-              <Minimize2 className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Maximize2 className="h-4 w-4" aria-hidden="true" />
-            )}
+            <span>{lang === 'ne' ? 'रूपान्तरण गर्नुहोस्' : 'Convert Now'}</span>
           </button>
-
-          {!autoConvert && (
-            <button
-              type="button"
-              onClick={handleManualConvert}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-red-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
-            >
-              <span>{lang === 'ne' ? 'रूपान्तरण' : 'Convert'}</span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Dual Pane Textarea Workspace */}
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {/* Source Pane */}
-        <div className="flex flex-col">
-          <div className="flex flex-col rounded-xl border border-slate-300 bg-slate-50/70 transition-colors focus-within:border-red-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-red-600/15 dark:border-slate-700 dark:bg-slate-950/70 dark:focus-within:border-red-500 dark:focus-within:bg-slate-950">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 px-3.5 py-2 dark:border-slate-800">
-              <label
-                htmlFor="converter-source-input"
-                className="text-xs font-semibold text-slate-700 dark:text-slate-200"
-              >
-                {sourceLabel}
-              </label>
-              <div className="flex items-center gap-1.5">
-                {altDigitsPreview && (
-                  <span className="font-mono-tabular text-[11px] font-semibold text-red-700 dark:text-red-400">
-                    Alt+{altDigitsPreview}
-                    {resolvePreetiAltCode(altDigitsPreview)
-                      ? ` → ${resolvePreetiAltCode(altDigitsPreview)?.unicode}`
-                      : ''}
-                  </span>
-                )}
-                {isLegacySourceMode && (
+      {/* Unified Split-Pane Studio Container */}
+      <div className="mt-3 grid grid-cols-1 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200/90 xl:grid-cols-2 xl:divide-x xl:divide-y-0 dark:divide-slate-800 dark:border-slate-800">
+        {/* Left Pane: Source Input */}
+        <div className="flex flex-col bg-slate-50/50 transition-colors focus-within:bg-white dark:bg-slate-950/55 dark:focus-within:bg-slate-950">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/75 px-4 py-2.5 dark:border-slate-800">
+            <label
+              htmlFor="converter-source-input"
+              className="text-xs font-semibold tracking-tight text-slate-700 dark:text-slate-200"
+            >
+              {sourceLabel}
+            </label>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {altDigitsPreview && (
+                <span className="font-mono-tabular text-[11px] font-semibold text-red-700 dark:text-red-400">
+                  Alt+{altDigitsPreview}
+                  {resolvePreetiAltCode(altDigitsPreview)
+                    ? ` → ${resolvePreetiAltCode(altDigitsPreview)?.unicode}`
+                    : ''}
+                </span>
+              )}
+
+              {isLegacySourceMode && (
+                <div
+                  role="group"
+                  aria-label="Preeti input display style"
+                  className="inline-flex items-center rounded-lg bg-slate-200/70 p-0.5 dark:bg-slate-800"
+                >
                   <button
                     type="button"
-                    onClick={handleTogglePreetiVisual}
-                    className={`inline-flex min-h-[30px] items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    onClick={() => {
+                      if (!preetiVisualTyping) handleTogglePreetiVisual();
+                    }}
+                    className={`min-h-[28px] rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
                       preetiVisualTyping
-                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300'
-                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                        ? 'bg-white text-red-700 shadow-xs dark:bg-slate-900 dark:text-red-400'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
                     }`}
                   >
-                    {preetiVisualTyping
-                      ? lang === 'ne'
-                        ? 'नेपाली दृश्य (ON)'
-                        : 'Nepali View (ON)'
-                      : lang === 'ne'
-                        ? 'कोड मोड (g]kfn)'
-                        : 'Raw Code (g]kfn)'}
+                    {lang === 'ne' ? 'नेपाली टाइप' : 'Nepali Keys'}
                   </button>
-                )}
-
-                {isUnicodeSourceMode && (
-                  <select
-                    aria-label="Input keyboard typing mode"
-                    value={unicodeInputHelper}
-                    onChange={(e) => {
-                      resetPreetiBuffer();
-                      setUnicodeInputHelper(
-                        e.target.value as 'direct' | 'preeti' | 'romanized',
-                      );
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (preetiVisualTyping) handleTogglePreetiVisual();
                     }}
-                    className="h-[30px] rounded-md border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    className={`min-h-[28px] rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                      !preetiVisualTyping
+                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                    }`}
                   >
-                    <option value="preeti">
-                      {lang === 'ne' ? 'Preeti किबोर्ड' : 'Preeti Keys'}
-                    </option>
-                    <option value="romanized">
-                      {lang === 'ne' ? 'Romanized टाइप' : 'Romanized Type'}
-                    </option>
-                    <option value="direct">
-                      {lang === 'ne' ? 'सिधा युनिकोड' : 'Direct Unicode'}
-                    </option>
-                  </select>
-                )}
+                    {lang === 'ne' ? 'प्रीति पेस्ट' : 'Raw Preeti'}
+                  </button>
+                </div>
+              )}
 
-                <button
-                  type="button"
-                  onClick={handlePasteButton}
-                  className="inline-flex min-h-[30px] items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              {isUnicodeSourceMode && (
+                <select
+                  aria-label="Input keyboard typing mode"
+                  value={unicodeInputHelper}
+                  onChange={(e) => {
+                    resetPreetiBuffer();
+                    setUnicodeInputHelper(
+                      e.target.value as 'direct' | 'preeti' | 'romanized',
+                    );
+                  }}
+                  className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-700 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                 >
-                  {pasted ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-                  ) : (
-                    <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  <span>
-                    {pasted
-                      ? lang === 'ne'
-                        ? 'पेस्ट भयो'
-                        : 'Pasted'
-                      : lang === 'ne'
-                        ? 'पेस्ट'
-                        : 'Paste'}
-                  </span>
-                </button>
-              </div>
+                  <option value="preeti">
+                    {lang === 'ne' ? 'Preeti किबोर्ड' : 'Preeti Keys'}
+                  </option>
+                  <option value="romanized">
+                    {lang === 'ne' ? 'Romanized टाइप' : 'Romanized Type'}
+                  </option>
+                  <option value="direct">
+                    {lang === 'ne' ? 'सिधा युनिकोड' : 'Direct Unicode'}
+                  </option>
+                </select>
+              )}
+
+              <button
+                type="button"
+                onClick={handlePasteButton}
+                className="inline-flex min-h-[30px] items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {pasted ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                ) : (
+                  <ClipboardPaste className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                <span>
+                  {pasted
+                    ? lang === 'ne'
+                      ? 'पेस्ट भयो'
+                      : 'Pasted'
+                    : lang === 'ne'
+                      ? 'पेस्ट'
+                      : 'Paste'}
+                </span>
+              </button>
             </div>
-            <textarea
-              ref={inputRef}
-              id="converter-source-input"
-              value={inputText}
-              onKeyDown={handleInputKeyDown}
-              onKeyUp={handleInputKeyUp}
-              onChange={handleInputChange}
-              onPaste={handleInputPaste}
-              onClick={() => resetPreetiBuffer()}
-              rows={expanded ? 15 : 9}
-              style={{fontSize: `${fontSize}px`}}
-              placeholder={
-                mode === 'romanized'
-                  ? 'Type here: namaste nepal, kasto chha?'
-                  : isUnicodeSourceMode && unicodeInputHelper === 'romanized'
-                    ? 'Romanized मा टाइप गर्नुहोस् (उदाहरण: mero desh nepal)...'
-                    : isVisualPreetiActive
-                      ? 'प्रीति किबोर्डबाट सिधै नेपालीमा टाइप गर्नुहोस् (उदाहरण: g]kfn → नेपाल)...'
-                      : 'Paste Preeti code here (e.g. g]kfn)...'
-              }
-              className={`font-nepali w-full resize-y bg-transparent p-3.5 leading-relaxed text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500 ${
-                expanded ? 'min-h-[380px]' : 'min-h-[230px]'
-              }`}
-            />
           </div>
 
-          {/* Character and Word Count Indicator Below Input Area */}
+          <textarea
+            ref={inputRef}
+            id="converter-source-input"
+            value={inputText}
+            onKeyDown={handleInputKeyDown}
+            onKeyUp={handleInputKeyUp}
+            onChange={handleInputChange}
+            onPaste={handleInputPaste}
+            onClick={() => resetPreetiBuffer()}
+            rows={expanded ? 15 : 9}
+            style={{fontSize: `${fontSize}px`}}
+            placeholder={
+              mode === 'romanized'
+                ? 'Type here: namaste nepal, kasto chha?'
+                : isUnicodeSourceMode && unicodeInputHelper === 'romanized'
+                  ? 'Romanized मा टाइप गर्नुहोस् (उदाहरण: mero desh nepal)...'
+                  : isVisualPreetiActive
+                    ? lang === 'ne'
+                      ? 'Preeti किबोर्डबाट सिधै नेपालीमा टाइप गर्नुहोस् वा पाठ पेस्ट गर्नुहोस्...'
+                      : 'Type using Preeti keyboard layout or paste Nepali text...'
+                    : lang === 'ne'
+                      ? 'MS Word वा Preeti फन्टबाट कपी गरिएको पाठ यहाँ पेस्ट गर्नुहोस्...'
+                      : 'Paste text copied from Preeti or legacy Nepali font here...'
+            }
+            className={`font-nepali w-full flex-1 resize-y bg-transparent p-4 leading-[1.75] text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500 ${
+              expanded ? 'min-h-[380px]' : 'min-h-[240px]'
+            }`}
+          />
+
+          {/* Left Pane Bottom Status Bar */}
           <div
             aria-live="polite"
-            className="font-mono-tabular mt-1.5 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400"
+            className="font-mono-tabular flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 bg-slate-50/80 px-4 py-2 text-[11px] text-slate-500 dark:border-slate-800 dark:bg-slate-950/80 dark:text-slate-400"
           >
             <span>
-              {lang === 'ne' ? 'इनपुट लम्बाइ:' : 'Input length:'}{' '}
               <strong className="font-semibold text-slate-700 dark:text-slate-200">
                 {inputMetrics.characters}
               </strong>{' '}
@@ -1200,161 +1208,169 @@ export function ConverterWorkspace({
             </span>
             <span>
               {inputMetrics.charactersNoSpaces}{' '}
-              {lang === 'ne' ? 'अक्षर (खाली ठाउँ बिना)' : 'no spaces'}
+              {lang === 'ne' ? 'खाली ठाउँ बिना' : 'no spaces'}
             </span>
           </div>
         </div>
 
-        {/* Output Pane with Embedded Copy to Clipboard Button + Visual Feedback */}
-        <div className="flex flex-col">
-          <div
-            className={`flex flex-col rounded-xl border transition-colors ${
-              copied
-                ? 'border-emerald-500 bg-emerald-50/20 ring-2 ring-emerald-500/20 dark:border-emerald-500/80 dark:bg-emerald-950/10'
-                : 'border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-950'
-            }`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 px-3.5 py-2 dark:border-slate-800">
-              <label
-                htmlFor="converter-target-output"
-                className="text-xs font-semibold text-slate-700 dark:text-slate-200"
-              >
-                {targetLabel}
-              </label>
-              <div className="flex items-center gap-1.5">
-                {isLegacyOutput && (
+        {/* Right Pane: Converted Output */}
+        <div
+          className={`flex flex-col transition-colors ${
+            copied
+              ? 'bg-emerald-50/25 dark:bg-emerald-950/15'
+              : 'bg-white dark:bg-slate-950'
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/75 px-4 py-2.5 dark:border-slate-800">
+            <label
+              htmlFor="converter-target-output"
+              className="text-xs font-semibold tracking-tight text-slate-700 dark:text-slate-200"
+            >
+              {targetLabel}
+            </label>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {isLegacyOutput && (
+                <div
+                  role="group"
+                  aria-label="Output display format"
+                  className="inline-flex items-center rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800"
+                >
                   <button
                     type="button"
-                    onClick={() => setOutputVisualNepali((v) => !v)}
-                    className={`inline-flex min-h-[30px] items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    onClick={() => setOutputVisualNepali(true)}
+                    className={`min-h-[28px] rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
                       outputVisualNepali
-                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300'
-                        : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'
+                        ? 'bg-white text-red-700 shadow-xs dark:bg-slate-900 dark:text-red-400'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
                     }`}
                   >
-                    {outputVisualNepali
-                      ? lang === 'ne'
-                        ? 'नेपाली दृश्य (ON)'
-                        : 'Nepali View (ON)'
-                      : lang === 'ne'
-                        ? 'फन्ट कोड (g]kfn)'
-                        : 'Font Code (g]kfn)'}
+                    {lang === 'ne' ? 'नेपाली हेर्नुहोस्' : 'Preview Nepali'}
                   </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handlePrintClick}
-                  disabled={!displayedOutput}
-                  aria-label={lang === 'ne' ? 'नतिजा प्रिन्ट गर्नुहोस्' : 'Print output'}
-                  className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                >
-                  <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="hidden sm:inline">
-                    {lang === 'ne' ? 'प्रिन्ट' : 'Print'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  disabled={!activeOutput}
-                  aria-live="polite"
-                  className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
-                    copied
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-red-700 text-white hover:bg-red-800'
-                  }`}
-                >
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  <span>
-                    {copied
-                      ? lang === 'ne'
-                        ? 'कपी भयो!'
-                        : 'Copied!'
-                      : isLegacyOutput
-                        ? lang === 'ne'
-                          ? 'फन्ट कोड कपी'
-                          : 'Copy Font Code'
-                        : lang === 'ne'
-                          ? 'कपी गर्नुहोस्'
-                          : 'Copy to Clipboard'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div className="relative flex-1">
-              <textarea
-                id="converter-target-output"
-                readOnly
-                value={displayedOutput}
-                rows={expanded ? 15 : 9}
-                style={{fontSize: `${fontSize}px`}}
-                placeholder={
-                  lang === 'ne'
-                    ? 'रूपान्तरण भएको नतिजा यहाँ देखिनेछ...'
-                    : 'Converted result appears here...'
-                }
-                className={`font-nepali w-full resize-y bg-transparent p-3.5 pb-12 leading-relaxed text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500 ${
-                  expanded ? 'min-h-[380px]' : 'min-h-[230px]'
-                }`}
-              />
-
-              {/* Floating Bottom-Right Visual Copy Feedback inside Output Area */}
-              {activeOutput && copied && (
-                <div className="pointer-events-none absolute right-3 bottom-3">
-                  <span className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
-                    {isLegacyOutput
-                      ? lang === 'ne'
-                        ? 'Preeti/फन्ट कोड कपी भयो'
-                        : 'Font code copied to clipboard'
-                      : lang === 'ne'
-                        ? 'क्लिपबोर्डमा कपी भयो'
-                        : 'Copied to clipboard'}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setOutputVisualNepali(false)}
+                    className={`min-h-[28px] rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                      !outputVisualNepali
+                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-300'
+                    }`}
+                  >
+                    {lang === 'ne' ? 'फन्ट कोड' : 'Font Code'}
+                  </button>
                 </div>
               )}
-            </div>
 
-            {/* Underlying Font Code / Nepali Verification Strip for Legacy Outputs */}
-            {isLegacyOutput && activeOutput && (
-              <div className="border-t border-slate-200/80 bg-slate-50/80 px-3.5 py-2.5 dark:border-slate-800 dark:bg-slate-900/70">
-                {outputVisualNepali ? (
-                  <>
-                    <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      {lang === 'ne'
-                        ? 'MS Word / Photoshop को लागि कपी हुने फन्ट कोड:'
-                        : 'Font code copied for MS Word / DTP:'}
-                    </div>
-                    <p className="font-mono-tabular mt-0.5 line-clamp-2 text-xs font-medium text-slate-700 dark:text-slate-300">
-                      {activeOutput}
-                    </p>
-                  </>
+              <button
+                type="button"
+                onClick={handlePrintClick}
+                disabled={!displayedOutput}
+                aria-label={lang === 'ne' ? 'नतिजा प्रिन्ट गर्नुहोस्' : 'Print output'}
+                className="inline-flex min-h-[32px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">
+                  {lang === 'ne' ? 'प्रिन्ट' : 'Print'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={!activeOutput}
+                aria-live="polite"
+                className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-lg px-3.5 py-1 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
+                  copied
+                    ? 'bg-emerald-600 shadow-xs'
+                    : 'bg-red-700 hover:bg-red-800 shadow-xs'
+                }`}
+              >
+                {copied ? (
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
                 ) : (
-                  <>
-                    <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      {lang === 'ne'
-                        ? 'नेपाली अक्षर जाँच:'
-                        : 'Nepali Visual Check:'}
-                    </div>
-                    <p className="font-nepali mt-0.5 line-clamp-2 text-sm font-medium text-slate-800 dark:text-slate-200">
-                      {outputNepaliPreview}
-                    </p>
-                  </>
+                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                 )}
+                <span>
+                  {copied
+                    ? lang === 'ne'
+                      ? 'कपी भयो!'
+                      : 'Copied!'
+                    : isLegacyOutput
+                      ? lang === 'ne'
+                        ? 'फन्ट कोड कपी'
+                        : 'Copy Font Code'
+                      : lang === 'ne'
+                        ? 'कपी गर्नुहोस्'
+                        : 'Copy Output'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative flex-1">
+            <textarea
+              id="converter-target-output"
+              readOnly
+              value={displayedOutput}
+              rows={expanded ? 15 : 9}
+              style={{fontSize: `${fontSize}px`}}
+              placeholder={
+                lang === 'ne'
+                  ? 'रूपान्तरण भएको नतिजा यहाँ देखिनेछ...'
+                  : 'Converted result appears here...'
+              }
+              className={`font-nepali w-full resize-y bg-transparent p-4 pb-12 leading-[1.75] text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-500 ${
+                expanded ? 'min-h-[380px]' : 'min-h-[240px]'
+              }`}
+            />
+
+            {activeOutput && copied && (
+              <div className="pointer-events-none absolute right-3 bottom-3">
+                <span className="rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
+                  {isLegacyOutput
+                    ? lang === 'ne'
+                      ? 'Preeti/फन्ट कोड कपी भयो'
+                      : 'Font code copied'
+                    : lang === 'ne'
+                      ? 'क्लिपबोर्डमा कपी भयो'
+                      : 'Copied to clipboard'}
+                </span>
               </div>
             )}
           </div>
 
-          {/* Character and Word Count Indicator Below Output Area */}
-          <div className="font-mono-tabular mt-1.5 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400">
+          {/* Legacy Font Counterpart Strip */}
+          {isLegacyOutput && activeOutput && (
+            <div className="border-t border-slate-200/75 bg-slate-50/70 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
+              {outputVisualNepali ? (
+                <>
+                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    {lang === 'ne'
+                      ? 'MS Word / Photoshop को लागि कपी हुने फन्ट कोड:'
+                      : 'Font code copied for MS Word / DTP:'}
+                  </div>
+                  <p className="font-mono-tabular mt-0.5 line-clamp-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {activeOutput}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    {lang === 'ne'
+                      ? 'नेपाली अक्षर जाँच:'
+                      : 'Nepali Visual Check:'}
+                  </div>
+                  <p className="font-nepali mt-0.5 line-clamp-2 text-sm font-medium text-slate-800 dark:text-slate-200">
+                    {outputNepaliPreview}
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Right Pane Bottom Status Bar */}
+          <div className="font-mono-tabular flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 bg-slate-50/40 px-4 py-2 text-[11px] text-slate-500 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-400">
             <span>
-              {lang === 'ne' ? 'नतिजा लम्बाइ:' : 'Output length:'}{' '}
               <strong className="font-semibold text-slate-700 dark:text-slate-200">
                 {outputMetrics.characters}
               </strong>{' '}
@@ -1370,38 +1386,14 @@ export function ConverterWorkspace({
         </div>
       </div>
 
-      {/* Output Actions + Text Cleanup Utilities */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+      {/* Export + Text Utility Bar */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={!activeOutput}
-            className={`inline-flex min-h-[42px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
-              copied ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-700 hover:bg-red-800'
-            }`}
-          >
-            {copied ? (
-              <Check className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Copy className="h-4 w-4" aria-hidden="true" />
-            )}
-            <span>
-              {copied
-                ? lang === 'ne'
-                  ? 'कपी भयो!'
-                  : 'Copied!'
-                : lang === 'ne'
-                  ? 'नतिजा कपी गर्नुहोस्'
-                  : 'Copy Output'}
-            </span>
-          </button>
-
           <button
             type="button"
             onClick={handleDownloadTxt}
             disabled={!activeOutput}
-            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
             <span>.TXT</span>
@@ -1411,7 +1403,7 @@ export function ConverterWorkspace({
             type="button"
             onClick={handleDownloadDoc}
             disabled={!activeOutput}
-            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             <FileText className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Word (.DOC)</span>
@@ -1421,46 +1413,46 @@ export function ConverterWorkspace({
             type="button"
             onClick={handlePrintClick}
             disabled={!displayedOutput}
-            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{lang === 'ne' ? 'प्रिन्ट' : 'Print'}</span>
+            <span>{lang === 'ne' ? 'प्रिन्ट गर्नुहोस्' : 'Print'}</span>
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => applyOutputTransform('to-ne-digits')}
-            className="min-h-[38px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="min-h-[34px] rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             0-9 → ०-९
           </button>
           <button
             type="button"
             onClick={() => applyOutputTransform('to-en-digits')}
-            className="min-h-[38px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="min-h-[34px] rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             ०-९ → 0-9
           </button>
           <button
             type="button"
             onClick={() => applyOutputTransform('clean')}
-            className="min-h-[38px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="min-h-[34px] rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             {lang === 'ne' ? 'खाली ठाउँ सफा' : 'Clean Spaces'}
           </button>
           <button
             type="button"
             onClick={() => applyOutputTransform('sort')}
-            className="min-h-[38px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="min-h-[34px] rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             {lang === 'ne' ? 'क्रमबद्ध (अ–ज्ञ)' : 'Sort Lines'}
           </button>
           <button
             type="button"
             onClick={() => applyOutputTransform('dedupe')}
-            className="min-h-[38px] rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            className="min-h-[34px] rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             {lang === 'ne' ? 'दोहोरिएको हटाउनुहोस्' : 'Dedupe Lines'}
           </button>
@@ -1468,10 +1460,10 @@ export function ConverterWorkspace({
       </div>
 
       {/* Quick Insert Special Nepali Symbols & Alt+Code Shortcuts */}
-      <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+      <div className="mt-4 border-t border-slate-200/80 pt-3.5 dark:border-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="mr-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
               {lang === 'ne' ? 'छिटो थप्नुहोस्:' : 'Quick Insert:'}
             </span>
             {QUICK_SYMBOLS.map((sym) => (
@@ -1479,7 +1471,7 @@ export function ConverterWorkspace({
                 key={sym}
                 type="button"
                 onClick={() => handleInsertSymbol(sym)}
-                className="font-nepali min-h-[34px] min-w-[34px] rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-800 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-red-500/50 dark:hover:text-red-400"
+                className="font-nepali min-h-[32px] min-w-[32px] rounded-md bg-slate-100/80 px-2 py-1 text-sm font-medium text-slate-800 transition-colors hover:bg-red-50 hover:text-red-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               >
                 {sym}
               </button>
@@ -1489,16 +1481,16 @@ export function ConverterWorkspace({
           <button
             type="button"
             onClick={() => setShowAltPalette((v) => !v)}
-            className={`min-h-[34px] whitespace-nowrap rounded-md border px-3 py-1 text-xs font-semibold transition-colors ${
+            className={`min-h-[32px] whitespace-nowrap rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
               showAltPalette
-                ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-200'
             }`}
           >
             {lang === 'ne'
               ? showAltPalette
                 ? 'Alt+Code लुकाउनुहोस्'
-                : 'Alt+0xxx सर्टकटहरू'
+                : 'Alt+0xxx सर्टकट'
               : showAltPalette
                 ? 'Hide Alt+Codes'
                 : 'Alt+0xxx Shortcuts'}
@@ -1506,13 +1498,11 @@ export function ConverterWorkspace({
         </div>
 
         {showAltPalette && (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-800 dark:bg-slate-950/70">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
-              <span>
-                {lang === 'ne'
-                  ? 'किबोर्डमा Alt थिचेर नम्बर (जस्तै Alt+0170) टाइप गर्नुहोस् वा तलको अक्षरमा क्लिक गर्नुहोस्:'
-                  : 'Hold Alt + type digits (e.g. Alt+0170) in the editor, or click any shortcut below to insert:'}
-              </span>
+          <div className="mt-3 rounded-xl bg-slate-50/80 p-3 dark:bg-slate-950/70">
+            <div className="mb-2 text-xs text-slate-600 dark:text-slate-400">
+              {lang === 'ne'
+                ? 'किबोर्डमा Alt थिचेर नम्बर (जस्तै Alt+0170) टाइप गर्नुहोस् वा तलको अक्षरमा क्लिक गर्नुहोस्:'
+                : 'Hold Alt + type digits (e.g. Alt+0170) in the editor, or click any shortcut below to insert:'}
             </div>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
               {PREETI_ALT_CODES.map((item) => (
@@ -1526,12 +1516,12 @@ export function ConverterWorkspace({
                         : item.unicode,
                     )
                   }
-                  className="flex min-h-[42px] items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left transition-colors hover:border-red-300 hover:bg-red-50/60 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-red-500/50"
+                  className="flex min-h-[40px] items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-left transition-colors hover:border-red-300 hover:bg-red-50/60 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-red-500/50"
                 >
                   <span className="font-nepali text-base font-bold text-red-700 dark:text-red-400">
                     {item.unicode}
                   </span>
-                  <span className="font-mono-tabular text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                  <span className="font-mono-tabular text-[11px] font-medium text-slate-500 dark:text-slate-300">
                     {item.altLabel}
                   </span>
                 </button>
@@ -1540,75 +1530,6 @@ export function ConverterWorkspace({
           </div>
         )}
       </div>
-
-      {/* Local Conversion History Drawer */}
-      {showHistory && (
-        <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {lang === 'ne'
-                ? 'हालसालैका ५ रूपान्तरण (तपाईंको ब्राउजरमा मात्र सुरक्षित)'
-                : 'Last 5 Conversions (Saved Locally in Your Browser)'}
-            </h3>
-            {history.length > 0 && (
-              <button
-                type="button"
-                onClick={onClearHistory}
-                className="text-xs font-medium text-red-700 hover:underline dark:text-red-400"
-              >
-                {lang === 'ne' ? 'सबै हटाउनुहोस्' : 'Clear All'}
-              </button>
-            )}
-          </div>
-          {history.length === 0 ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {lang === 'ne'
-                ? 'तपाईंले पाठ रूपान्तरण, कपी वा डाउनलोड गरेपछि यहाँ इतिहास देखिनेछ।'
-                : 'Your last 5 converted snippets will appear here.'}
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 dark:border-slate-800 dark:bg-slate-950/60"
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetPreetiBuffer();
-                      setUndoSnapshot(inputText);
-                      if (item.mode !== mode) {
-                        skipNextModeResetRef.current = true;
-                        onModeChange(item.mode);
-                      }
-                      setFromFont(item.fromFont || 'preeti');
-                      setToFont(item.toFont || 'unicode');
-                      setInputText(item.input);
-                    }}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      {item.sourceLabel} → {item.targetLabel} · {item.createdAt}
-                    </span>
-                    <span className="font-nepali mt-1 line-clamp-1 block text-xs font-medium text-slate-800 dark:text-slate-200">
-                      {item.previewText || item.output}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveHistoryItem(item.id)}
-                    aria-label={lang === 'ne' ? 'हटाउनुहोस्' : 'Remove item'}
-                    className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </section>
   );
 }

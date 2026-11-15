@@ -12,6 +12,7 @@ import {
   type NepalClockState,
 } from '../utils/nepaliDate';
 import {toNepaliDigits} from '../utils/preetiEngine';
+import {LiveNepalTime} from './LiveNepalTime';
 
 interface DateTimePanelProps {
   clock: NepalClockState;
@@ -51,9 +52,11 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
     [adYear, adMonth, clampedAdDay],
   );
 
+  const dobMax = getBSMonthDays(dobBsYear)[dobBsMonth - 1] ?? 30;
+  const clampedDobBsDay = Math.min(dobBsDay, dobMax);
+
   const ageDetails = useMemo(() => {
-    const dobMax = getBSMonthDays(dobBsYear)[dobBsMonth - 1] ?? 30;
-    const dobAd = bsToAd(dobBsYear, dobBsMonth, Math.min(dobBsDay, dobMax));
+    const dobAd = bsToAd(dobBsYear, dobBsMonth, clampedDobBsDay);
     if (!dobAd) return null;
 
     const dobUtc = Date.UTC(dobAd.year, dobAd.month - 1, dobAd.day);
@@ -63,7 +66,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
 
     let years = clock.bs.year - dobBsYear;
     let months = clock.bs.month - dobBsMonth;
-    let days = clock.bs.day - Math.min(dobBsDay, dobMax);
+    let days = clock.bs.day - clampedDobBsDay;
     if (days < 0) {
       months -= 1;
       const prevMonthIdx = (clock.bs.month - 2 + 12) % 12;
@@ -75,7 +78,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
     }
 
     return {years, months, days, totalDays, dobAd};
-  }, [dobBsYear, dobBsMonth, dobBsDay, clock]);
+  }, [dobBsYear, dobBsMonth, clampedDobBsDay, clock]);
 
   const jumpToToday = () => {
     setBsYear(clock.bs.year);
@@ -102,9 +105,9 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
     <section
       id="date-time"
       aria-label="Nepali Date Converter and Live Nepal Time"
-      className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
         <div>
           <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
             {lang === 'ne'
@@ -121,38 +124,33 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
         <button
           type="button"
           onClick={jumpToToday}
-          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50/80 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
           <span>{lang === 'ne' ? 'आजको मिति' : 'Reset to Today'}</span>
         </button>
       </div>
 
-      {/* Live Nepal Time & Today Summary */}
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/60">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-            <Clock className="h-4 w-4 text-red-700 dark:text-red-400" aria-hidden="true" />
+      {/* Unified Live Nepal Time & Today Summary */}
+      <div className="mt-5 grid grid-cols-1 gap-5 rounded-xl bg-slate-50/80 p-4 md:grid-cols-2 md:gap-0 md:divide-x md:divide-slate-200 dark:bg-slate-950/60 dark:md:divide-slate-800">
+        <div className="md:pr-6">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <Clock className="h-3.5 w-3.5 text-red-700 dark:text-red-400" aria-hidden="true" />
             <span>{lang === 'ne' ? 'नेपालको वर्तमान समय (NPT)' : 'Nepal Standard Time (Asia/Kathmandu)'}</span>
           </div>
-          <div className="font-mono-tabular mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {clock.time12En}
-          </div>
-          <div className="font-nepali mt-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-            {clock.time12Ne} · 24h: <span className="font-mono-tabular">{clock.time24En}</span>
-          </div>
+          <LiveNepalTime variant="panel" lang={lang} />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/60">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
-            <Calendar className="h-4 w-4 text-red-700 dark:text-red-400" aria-hidden="true" />
+        <div className="md:pl-6">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <Calendar className="h-3.5 w-3.5 text-red-700 dark:text-red-400" aria-hidden="true" />
             <span>{lang === 'ne' ? 'आजको नेपाली र अंग्रेजी मिति' : "Today's Nepali & English Date"}</span>
           </div>
-          <div className="font-nepali mt-2 text-xl font-bold text-slate-900 dark:text-white">
+          <div className="font-nepali mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
             {clock.bs.formattedNe}
           </div>
-          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            {clock.bs.formattedEn} ·{' '}
+          <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+            {clock.bs.formattedEn} <span aria-hidden="true">·</span>{' '}
             <span className="font-mono-tabular">
               {clock.adYear}-{String(clock.adMonth).padStart(2, '0')}-
               {String(clock.adDay).padStart(2, '0')} AD
@@ -162,9 +160,9 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
       </div>
 
       {/* BS -> AD and AD -> BS Converters */}
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
         {/* BS to AD */}
-        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+        <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
             {lang === 'ne' ? 'विक्रम सम्वत् → इस्वी सम्वत् (BS to AD)' : 'BS to AD Converter'}
           </h3>
@@ -180,7 +178,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
                 id="bs-year"
                 value={bsYear}
                 onChange={(e) => setBsYear(Number(e.target.value))}
-                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 {bsYears.map((y) => (
                   <option key={y} value={y}>
@@ -200,7 +198,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
                 id="bs-month"
                 value={bsMonth}
                 onChange={(e) => setBsMonth(Number(e.target.value))}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 {BS_MONTHS_EN.map((m, idx) => (
                   <option key={m} value={idx + 1}>
@@ -220,7 +218,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
                 id="bs-day"
                 value={clampedBsDay}
                 onChange={(e) => setBsDay(Number(e.target.value))}
-                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 {Array.from({length: maxBsDay}, (_, idx) => idx + 1).map((d) => (
                   <option key={d} value={d}>
@@ -231,11 +229,11 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
             </div>
           </div>
 
-          <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {lang === 'ne' ? 'इस्वी सम्वत् नतिजा:' : 'Converted AD Date:'}
+          <div className="mt-3 rounded-xl bg-slate-50/90 px-4 py-3 dark:bg-slate-950/70">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              {lang === 'ne' ? 'इस्वी सम्वत् नतिजा' : 'Converted AD Date'}
             </div>
-            <div className="mt-1 text-base font-bold text-red-700 dark:text-red-400">
+            <div className="mt-0.5 text-base font-bold text-red-700 dark:text-red-400">
               {convertedAd ? convertedAd.formattedEn : 'Out of range (2000–2090 BS)'}
             </div>
             {convertedAd && (
@@ -248,7 +246,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
         </div>
 
         {/* AD to BS */}
-        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+        <div>
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
             {lang === 'ne' ? 'इस्वी सम्वत् → विक्रम सम्वत् (AD to BS)' : 'AD to BS Converter'}
           </h3>
@@ -264,7 +262,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
                 id="ad-year"
                 value={adYear}
                 onChange={(e) => setAdYear(Number(e.target.value))}
-                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 {adYears.map((y) => (
                   <option key={y} value={y}>
@@ -284,7 +282,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
                 id="ad-month"
                 value={adMonth}
                 onChange={(e) => setAdMonth(Number(e.target.value))}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 {AD_MONTHS_EN.map((m, idx) => (
                   <option key={m} value={idx + 1}>
@@ -304,7 +302,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
                 id="ad-day"
                 value={clampedAdDay}
                 onChange={(e) => setAdDay(Number(e.target.value))}
-                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                className="font-mono-tabular h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
               >
                 {Array.from({length: maxAdDay}, (_, idx) => idx + 1).map((d) => (
                   <option key={d} value={d}>
@@ -315,11 +313,11 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
             </div>
           </div>
 
-          <div className="mt-4 rounded-lg bg-slate-50 p-3 dark:bg-slate-950">
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {lang === 'ne' ? 'विक्रम सम्वत् नतिजा:' : 'Converted BS Date:'}
+          <div className="mt-3 rounded-xl bg-slate-50/90 px-4 py-3 dark:bg-slate-950/70">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              {lang === 'ne' ? 'विक्रम सम्वत् नतिजा' : 'Converted BS Date'}
             </div>
-            <div className="font-nepali mt-1 text-base font-bold text-red-700 dark:text-red-400">
+            <div className="font-nepali mt-0.5 text-base font-bold text-red-700 dark:text-red-400">
               {convertedBs ? convertedBs.formattedNe : 'Out of range (1943–2033 AD)'}
             </div>
             {convertedBs && (
@@ -332,7 +330,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
       </div>
 
       {/* BS Age Calculator */}
-      <div className="mt-5 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+      <div className="mt-6 border-t border-slate-200/80 pt-5 dark:border-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white">
             {lang === 'ne'
@@ -340,7 +338,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
               : 'Nepali Age Calculator (From BS Birth Date)'}
           </h3>
           {ageDetails && (
-            <span className="font-mono-tabular text-xs font-semibold text-red-700 dark:text-red-400">
+            <span className="font-mono-tabular text-sm font-bold text-red-700 dark:text-red-400">
               {ageDetails.years}y {ageDetails.months}m {ageDetails.days}d ·{' '}
               {ageDetails.totalDays.toLocaleString()} days
             </span>
@@ -358,7 +356,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
               id="dob-bs-year"
               value={dobBsYear}
               onChange={(e) => setDobBsYear(Number(e.target.value))}
-              className="font-mono-tabular h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              className="font-mono-tabular h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             >
               {bsYears.map((y) => (
                 <option key={y} value={y}>
@@ -378,7 +376,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
               id="dob-bs-month"
               value={dobBsMonth}
               onChange={(e) => setDobBsMonth(Number(e.target.value))}
-              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             >
               {BS_MONTHS_EN.map((m, idx) => (
                 <option key={m} value={idx + 1}>
@@ -396,23 +394,20 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
             </label>
             <select
               id="dob-bs-day"
-              value={dobBsDay}
+              value={clampedDobBsDay}
               onChange={(e) => setDobBsDay(Number(e.target.value))}
-              className="font-mono-tabular h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+              className="font-mono-tabular h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-white"
             >
-              {Array.from(
-                {length: getBSMonthDays(dobBsYear)[dobBsMonth - 1] ?? 30},
-                (_, idx) => idx + 1,
-              ).map((d) => (
+              {Array.from({length: dobMax}, (_, idx) => idx + 1).map((d) => (
                 <option key={d} value={d}>
                   {d}
                 </option>
               ))}
             </select>
           </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-slate-950">
-            <span className="block text-slate-500 dark:text-slate-400">
-              {lang === 'ne' ? 'AD जन्म मिति:' : 'AD Equivalent:'}
+          <div className="rounded-lg bg-slate-50/90 px-3 py-2 text-xs dark:bg-slate-950/70">
+            <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+              {lang === 'ne' ? 'AD जन्म मिति' : 'AD Equivalent'}
             </span>
             <span className="font-semibold text-slate-800 dark:text-slate-200">
               {ageDetails ? ageDetails.dobAd.formattedEn : 'Invalid / Future Date'}

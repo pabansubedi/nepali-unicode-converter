@@ -49,17 +49,21 @@
       rel="stylesheet"
     />
 
-    <!--
-      ========================================================================
-      GOOGLE ADSENSE HEAD SCRIPT (Uncomment & replace ca-pub-XXXXXXXXXXXXXXXX)
-      ========================================================================
-      <meta name="google-adsense-account" content="ca-pub-XXXXXXXXXXXXXXXX" />
-      <script
-        async
-        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
-        crossorigin="anonymous"
-      ></script>
-    -->
+    <!-- Apply saved or system dark theme before first paint to prevent white flash -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('nus_theme');
+          var prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
 
     <!-- Schema.org Structured Data (WebApplication + FAQPage) -->
     <script type="application/ld+json">
@@ -105,7 +109,7 @@
       }
     </script>
   </head>
-  <body class="bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
+  <body class="bg-[#F8FAFC] text-slate-900 antialiased dark:bg-[#090C12] dark:text-slate-100">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

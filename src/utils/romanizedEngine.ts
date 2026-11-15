@@ -114,6 +114,63 @@ const WORD_DICTIONARY: Record<string, string> = {
   mahina: 'महिना',
   din: 'दिन',
   sankhya: 'संख्या',
+  ramro: 'राम्रो',
+  naramro: 'नराम्रो',
+  sathi: 'साथी',
+  sanga: 'सँग',
+  kura: 'कुरा',
+  bhet: 'भेट',
+  thik: 'ठीक',
+  theek: 'ठीक',
+  lai: 'लाई',
+  kaha: 'कहाँ',
+  kahaa: 'कहाँ',
+  kahile: 'कहिले',
+  kasari: 'कसरी',
+  kina: 'किन',
+  aunu: 'आउनु',
+  aaunu: 'आउनु',
+  garnuhos: 'गर्नुहोस्',
+  garna: 'गर्न',
+  garne: 'गर्ने',
+  garnu: 'गर्नु',
+  hunuhunchha: 'हुनुहुन्छ',
+  hunu: 'हुनु',
+  haru: 'हरू',
+  pani: 'पनि',
+  tara: 'तर',
+  ani: 'अनि',
+  ra: 'र',
+  ma: 'म',
+  yo: 'यो',
+  tyo: 'त्यो',
+  ko: 'को',
+  le: 'ले',
+  bata: 'बाट',
+  ghar: 'घर',
+  paani: 'पानी',
+  pani2: 'पानी',
+  khana: 'खाना',
+  bida: 'बिदा',
+  nivedan: 'निवेदन',
+  nibedan: 'निवेदन',
+  suchana: 'सूचना',
+  prakashit: 'प्रकाशित',
+  samasya: 'समस्या',
+  sajilo: 'सजिलो',
+  uttam: 'उत्तम',
+  website: 'वेबसाइट',
+  mangal: 'मङ्गल',
+  mangalbar: 'मङ्गलबार',
+  mangalwaar: 'मङ्गलबार',
+  jangal: 'जङ्गल',
+  ganga: 'गङ्गा',
+  sangat: 'सङ्गत',
+  dhunga: 'ढुङ्गा',
+  angur: 'अङ्गुर',
+  angreji: 'अङ्ग्रेजी',
+  bango: 'बाङ्गो',
+  singo: 'सिङ्गो',
 };
 
 const VOWELS_STANDALONE: Array<[string, string]> = [
@@ -170,8 +227,8 @@ const CONSONANTS: Array<[string, string]> = [
   ['jh', 'झ'],
   ['Th', 'ठ'],
   ['Dh', 'ढ'],
-  ['th', 'त'],
-  ['dh', 'द'],
+  ['th', 'थ'],
+  ['dh', 'ध'],
   ['ph', 'फ'],
   ['bh', 'भ'],
   ['sh', 'श'],
@@ -200,7 +257,7 @@ const CONSONANTS: Array<[string, string]> = [
   ['s', 'स'],
   ['S', 'ष'],
   ['h', 'ह'],
-  ['x', 'क्ष'],
+  ['x', 'छ'],
   ['Y', 'ञ'],
   ['z', 'ज'],
   ['q', 'क'],
@@ -269,7 +326,8 @@ function convertToken(token: string): string {
     }
 
     if (matchedCons) {
-      const [cKey, cVal] = matchedCons;
+      const [cKey] = matchedCons;
+      let [, cVal] = matchedCons;
       i += cKey.length;
 
       // Explicit halant with backslash or slash
@@ -277,6 +335,19 @@ function convertToken(token: string): string {
         out += cVal + '्';
         i += 1;
         continue;
+      }
+
+      // In middle of a word (after an earlier syllable), intervocalic "ng" represents "ङ्ग"
+      // unless explicitly followed by another k/g (e.g., manggal -> मङ्गल, angka -> अङ्क)
+      if (
+        cKey === 'ng' &&
+        out.length > 0 &&
+        token[i] !== 'g' &&
+        token[i] !== 'k' &&
+        i < token.length &&
+        /^[aAeEiIoOuU]/.test(token[i])
+      ) {
+        cVal = 'ङ्ग';
       }
 
       // Check following vowel matra
