@@ -1,0 +1,8 @@
+{
+  "name": "Nepali Unicode Studio",
+  "description": "Fast, secure Preeti to Unicode, Unicode to Preeti, multi-font Nepali converter, Romanized typing, and BS-AD Nepali Date & Time suite for unicode.pabansubedi.com.np.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
