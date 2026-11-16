@@ -17,8 +17,25 @@ function getOrCreateSessionId(): string {
   return `sess_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function getNepalHour(): number {
+  const now = new Date();
+  const nptMinutes = (now.getUTCHours() * 60 + now.getUTCMinutes() + 345) % 1440;
+  return nptMinutes / 60;
+}
+
+function getStaticTargetRange(hour: number): {min: number; max: number} {
+  if (hour >= 0 && hour < 6) {
+    return {min: 0, max: 9};
+  }
+  if ((hour >= 6 && hour < 8.5) || (hour >= 21.5 && hour < 24)) {
+    return {min: 6, max: 36};
+  }
+  return {min: 49, max: 78};
+}
+
 function createInitialBaseline(): number {
-  return 54 + Math.floor(Math.random() * 14);
+  const {min, max} = getStaticTargetRange(getNepalHour());
+  return Math.max(1, min + Math.floor(Math.random() * Math.max(1, max - min + 1)) + 1);
 }
 
 export function useLivePresence(): LivePresenceState {
@@ -41,12 +58,13 @@ export function useLivePresence(): LivePresenceState {
     let pollingTimer: number | null = null;
     let staticDriftTimer: number | null = null;
     let wsFailureCount = 0;
-    let staticBaseline = initialCountRef.current;
+    let staticBaseline = Math.max(0, initialCountRef.current - 1);
+    let lullTicks = 0;
 
     const localTabs = new Map<string, number>([[sessionId, Date.now()]]);
     let bc: BroadcastChannel | null = null;
 
-    const getStaticCount = () => Math.max(51, staticBaseline + localTabs.size - 1);
+    const getStaticCount = () => Math.max(1, staticBaseline + localTabs.size);
 
     const stopStaticDrift = () => {
       if (staticDriftTimer !== null) {
@@ -59,11 +77,22 @@ export function useLivePresence(): LivePresenceState {
       if (staticDriftTimer !== null) return;
       staticDriftTimer = window.setInterval(() => {
         if (disposed) return;
-        const deltas = [-2, -1, -1, 0, 1, 1, 2];
-        let delta = deltas[Math.floor(Math.random() * deltas.length)];
-        if (staticBaseline <= 53 && delta < 0) delta = 1;
-        if (staticBaseline >= 86 && delta > 0) delta = -1;
-        staticBaseline = Math.max(51, Math.min(92, staticBaseline + delta));
+        const {min, max} = getStaticTargetRange(getNepalHour());
+
+        if (lullTicks > 0) {
+          lullTicks -= 1;
+          staticBaseline = Math.max(0, staticBaseline - (Math.random() < 0.65 ? 2 : 1));
+        } else {
+          if (staticBaseline > 5 && Math.random() < 0.015) {
+            lullTicks = 4 + Math.floor(Math.random() * 5);
+          }
+          const deltas = [-2, -1, -1, 0, 1, 1, 2];
+          let delta = deltas[Math.floor(Math.random() * deltas.length)];
+          if (staticBaseline < min) delta = Math.random() < 0.75 ? 2 : 1;
+          if (staticBaseline > max) delta = -1;
+          staticBaseline = Math.max(0, Math.min(88, staticBaseline + delta));
+        }
+
         bc?.postMessage({type: 'ping', id: sessionId});
         setState({
           count: getStaticCount(),
@@ -118,7 +147,7 @@ export function useLivePresence(): LivePresenceState {
         if (!disposed && typeof data.count === 'number') {
           stopStaticDrift();
           setState({
-            count: Math.max(51, data.count),
+            count: Math.max(1, data.count),
             connected: true,
             transport: 'polling',
           });
@@ -196,7 +225,7 @@ export function useLivePresence(): LivePresenceState {
           };
           if (msg.type === 'presence:update' && typeof msg.count === 'number') {
             setState({
-              count: Math.max(51, msg.count),
+              count: Math.max(1, msg.count),
               connected: true,
               transport: 'websocket',
             });

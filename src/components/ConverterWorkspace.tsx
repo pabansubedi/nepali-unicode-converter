@@ -27,6 +27,7 @@ import {
   computeTextMetrics,
   convertBetweenFonts,
   dedupeNepaliLines,
+  detectMostLikelySourceFont,
   NEPALI_FONTS,
   type NepaliFontId,
   PREETI_ALT_CODES,
@@ -139,6 +140,8 @@ export function ConverterWorkspace({
   const wordEndRef = useRef<number>(0);
   const altDigitsRef = useRef<string>('');
   const altConsumedRef = useRef<boolean>(false);
+  const isAltHeldRef = useRef<boolean>(false);
+  const pendingAltEchoUntilRef = useRef<number>(0);
   const skipNextModeResetRef = useRef<boolean>(false);
 
   const resetPreetiBuffer = () => {
@@ -265,6 +268,46 @@ export function ConverterWorkspace({
     isLegacyOutput && outputVisualNepali && outputNepaliPreview
       ? outputNepaliPreview
       : activeOutput;
+
+  const sourceFontDetection = useMemo(() => {
+    if (mode !== 'multi-font') return null;
+    return detectMostLikelySourceFont(inputText);
+  }, [mode, inputText]);
+
+  const showSourceFontSuggestion = useMemo(() => {
+    if (mode !== 'multi-font' || !sourceFontDetection?.suggestedFont) {
+      return false;
+    }
+    if (sourceFontDetection.suggestedFont === 'preeti') {
+      return fromFont === 'unicode';
+    }
+    // Suggest Unicode when legacy font is selected and user pasted/entered Devanagari
+    if (fromFont !== 'unicode') {
+      if (preetiVisualTyping && inputText === SAMPLE_UNICODE) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  }, [mode, sourceFontDetection, fromFont, preetiVisualTyping, inputText]);
+
+  const handleApplySuggestedSourceFont = () => {
+    if (!sourceFontDetection?.suggestedFont) return;
+    resetPreetiBuffer();
+    const suggested = sourceFontDetection.suggestedFont;
+    if (suggested === 'unicode') {
+      if (toFont === 'unicode') {
+        setToFont(fromFont !== 'unicode' ? fromFont : 'preeti');
+      }
+      setFromFont('unicode');
+      setUnicodeInputHelper('direct');
+    } else {
+      if (toFont === 'preeti') {
+        setToFont('unicode');
+      }
+      setFromFont('preeti');
+    }
+  };
 
   const inputMetrics = useMemo(() => computeTextMetrics(inputText), [inputText]);
   const outputMetrics = useMemo(
@@ -430,16 +473,45 @@ export function ConverterWorkspace({
     });
   };
 
-  const commitAltCodeInsert = (digits: string) => {
+  const commitAltCodeInsert = (digits: string): boolean => {
     const match = resolvePreetiAltCode(digits);
     if (!match) return false;
-    if (isVisualPreetiActive && inputRef.current) {
-      applyPreetiKeyToText(match.asciiChar, inputRef.current);
+
+    // Guard against native OS WM_CHAR / Option-key echo after our handler already inserted
+    pendingAltEchoUntilRef.current = isAltHeldRef.current
+      ? Number.POSITIVE_INFINITY
+      : Date.now() + 450;
+
+    if (isLegacySourceMode && !preetiVisualTyping) {
+      handleInsertSymbol(match.asciiChar);
       return true;
     }
-    const textToInsert =
-      isLegacySourceMode && !preetiVisualTyping ? match.asciiChar : match.unicode;
-    handleInsertSymbol(textToInsert);
+
+    const el = inputRef.current;
+    if (
+      isVisualPreetiActive &&
+      el &&
+      preetiBufferRef.current.endsWith('l') &&
+      /^[\u0915-\u0939]/.test(match.unicode)
+    ) {
+      const selStart = el.selectionStart ?? inputText.length;
+      const selEnd = el.selectionEnd ?? inputText.length;
+      if (selStart === selEnd && inputText.slice(0, selStart).endsWith('\u093F')) {
+        resetPreetiBuffer();
+        const combined = `${match.unicode}\u093F`;
+        const nextValue =
+          inputText.slice(0, selStart - 1) + combined + inputText.slice(selEnd);
+        const nextCaret = selStart - 1 + combined.length;
+        setInputText(nextValue);
+        window.requestAnimationFrame(() => {
+          el.focus();
+          el.setSelectionRange(nextCaret, nextCaret);
+        });
+        return true;
+      }
+    }
+
+    handleInsertSymbol(match.unicode);
     return true;
   };
 
@@ -447,6 +519,21 @@ export function ConverterWorkspace({
     // Capture Alt + 0xxx shortcut codes reliably across Numpad (NumLock on/off), top-row Digits, Mac Option, and Right-Alt (AltGraph)
     const isAltGraph = Boolean(e.getModifierState?.('AltGraph'));
     const isAltPressed = e.altKey || isAltGraph;
+    isAltHeldRef.current = isAltPressed;
+
+    if (
+      !isAltPressed &&
+      e.key !== 'Alt' &&
+      e.key !== 'AltGraph' &&
+      e.key !== 'Shift' &&
+      e.key !== 'Control' &&
+      e.key !== 'Meta' &&
+      e.key !== 'Process' &&
+      e.key !== 'Unidentified'
+    ) {
+      pendingAltEchoUntilRef.current = 0;
+    }
+
     if (isAltPressed && (!e.ctrlKey || isAltGraph) && !e.metaKey) {
       const codeDigitMatch = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
       const altDigit = /^[0-9]$/.test(e.key)
@@ -456,6 +543,9 @@ export function ConverterWorkspace({
       if (altDigit !== null) {
         e.preventDefault();
         e.stopPropagation();
+        if (e.repeat) {
+          return;
+        }
         altConsumedRef.current = true;
         const nextDigits = (altDigitsRef.current + altDigit).slice(0, 4);
         altDigitsRef.current = nextDigits;
@@ -474,6 +564,29 @@ export function ConverterWorkspace({
         altDigitsRef.current = trimmed;
         setAltDigitsPreview(trimmed);
         return;
+      }
+
+      if (
+        e.key === 'Escape' &&
+        (altDigitsRef.current.length > 0 || altConsumedRef.current)
+      ) {
+        e.preventDefault();
+        altDigitsRef.current = '';
+        altConsumedRef.current = false;
+        setAltDigitsPreview('');
+        return;
+      }
+
+      if (
+        e.key !== 'Alt' &&
+        e.key !== 'AltGraph' &&
+        e.key !== 'Shift' &&
+        e.key !== 'Control' &&
+        e.key !== 'Meta' &&
+        e.key !== 'NumLock'
+      ) {
+        altDigitsRef.current = '';
+        setAltDigitsPreview('');
       }
     }
 
@@ -528,6 +641,7 @@ export function ConverterWorkspace({
 
   const handleInputKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Alt' || e.key === 'AltGraph') {
+      isAltHeldRef.current = false;
       if (altConsumedRef.current || altDigitsRef.current) {
         e.preventDefault();
       }
@@ -535,14 +649,43 @@ export function ConverterWorkspace({
         commitAltCodeInsert(altDigitsRef.current);
         altDigitsRef.current = '';
         setAltDigitsPreview('');
+      } else if (pendingAltEchoUntilRef.current === Number.POSITIVE_INFINITY) {
+        pendingAltEchoUntilRef.current = Date.now() + 450;
       }
       altConsumedRef.current = false;
+    }
+  };
+
+  const handleInputBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const native = e.nativeEvent as InputEvent | undefined;
+    const data = native?.data ?? '';
+    if (!data || data.length > 2) return;
+    if (isAltHeldRef.current || Date.now() <= pendingAltEchoUntilRef.current) {
+      e.preventDefault();
+      pendingAltEchoUntilRef.current = 0;
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextVal = e.target.value;
     const caret = e.target.selectionStart ?? nextVal.length;
+
+    // Discard delayed OS-synthesized Alt+Numpad / Option characters when our handler already committed
+    if (
+      Date.now() <= pendingAltEchoUntilRef.current &&
+      nextVal.length > inputText.length &&
+      nextVal.length <= inputText.length + 2
+    ) {
+      const el = e.target;
+      const added = nextVal.length - inputText.length;
+      const restoredCaret = Math.max(0, caret - added);
+      pendingAltEchoUntilRef.current = 0;
+      setInputText(inputText);
+      window.requestAnimationFrame(() => {
+        el.setSelectionRange(restoredCaret, restoredCaret);
+      });
+      return;
+    }
 
     // Fallback when OS (Windows Numpad Alt+0xxx or Mac Option) inserts a Latin-1 / Windows-1252 Preeti glyph natively
     if (caret > 0 && (isVisualPreetiActive || isUnicodeSourceMode)) {
@@ -1076,60 +1219,120 @@ export function ConverterWorkspace({
 
         {/* Multi-Font Selectors or Romanized Quick Examples */}
         {mode === 'multi-font' && (
-          <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
-            <div>
-              <label
-                htmlFor="source-font-select"
-                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+          <div className="space-y-2.5 pt-1">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+              <div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="source-font-select"
+                    className="block text-xs font-medium text-slate-500 dark:text-slate-400"
+                  >
+                    {lang === 'ne' ? 'स्रोत फन्ट (From)' : 'Source Font'}
+                  </label>
+                  {sourceFontDetection?.suggestedFont && !showSourceFontSuggestion && (
+                    <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                      {sourceFontDetection.suggestedFont === 'unicode'
+                        ? lang === 'ne'
+                          ? 'पहिचान: युनिकोड'
+                          : 'Detected: Unicode'
+                        : lang === 'ne'
+                          ? 'पहिचान: प्रीति ढाँचा'
+                          : 'Detected: Preeti'}
+                    </span>
+                  )}
+                </div>
+                <select
+                  id="source-font-select"
+                  value={fromFont}
+                  onChange={(e) => {
+                    resetPreetiBuffer();
+                    setFromFont(e.target.value as NepaliFontId);
+                  }}
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-900 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                >
+                  {NEPALI_FONTS.map((font) => (
+                    <option key={font.id} value={font.id}>
+                      {lang === 'ne' ? font.nepaliName : font.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSwap}
+                aria-label="Swap source and target fonts"
+                className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-red-600 sm:w-10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                {lang === 'ne' ? 'स्रोत फन्ट (From)' : 'Source Font'}
-              </label>
-              <select
-                id="source-font-select"
-                value={fromFont}
-                onChange={(e) => {
-                  resetPreetiBuffer();
-                  setFromFont(e.target.value as NepaliFontId);
-                }}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-900 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              >
-                {NEPALI_FONTS.map((font) => (
-                  <option key={font.id} value={font.id}>
-                    {lang === 'ne' ? font.nepaliName : font.name}
-                  </option>
-                ))}
-              </select>
+                <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+
+              <div>
+                <label
+                  htmlFor="target-font-select"
+                  className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+                >
+                  {lang === 'ne' ? 'लक्ष्य फन्ट (To)' : 'Target Font'}
+                </label>
+                <select
+                  id="target-font-select"
+                  value={toFont}
+                  onChange={(e) => setToFont(e.target.value as NepaliFontId)}
+                  className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-900 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                >
+                  {NEPALI_FONTS.map((font) => (
+                    <option key={font.id} value={font.id}>
+                      {lang === 'ne' ? font.nepaliName : font.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSwap}
-              aria-label="Swap source and target fonts"
-              className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-red-600 sm:w-10 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-            >
-              <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-
-            <div>
-              <label
-                htmlFor="target-font-select"
-                className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400"
+            {showSourceFontSuggestion && sourceFontDetection?.suggestedFont && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50/90 px-3.5 py-2.5 text-xs dark:border-indigo-800/70 dark:bg-indigo-950/50"
               >
-                {lang === 'ne' ? 'लक्ष्य फन्ट (To)' : 'Target Font'}
-              </label>
-              <select
-                id="target-font-select"
-                value={toFont}
-                onChange={(e) => setToFont(e.target.value as NepaliFontId)}
-                className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-900 focus:border-red-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              >
-                {NEPALI_FONTS.map((font) => (
-                  <option key={font.id} value={font.id}>
-                    {lang === 'ne' ? font.nepaliName : font.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="flex items-center gap-2 text-indigo-950 dark:text-indigo-100">
+                  <Sparkles
+                    className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    <strong className="font-semibold">
+                      {sourceFontDetection.suggestedFont === 'unicode'
+                        ? lang === 'ne'
+                          ? 'सुझाव: स्रोत फन्ट युनिकोड (Unicode) हुनुपर्छ'
+                          : 'Suggestion: Input looks like Unicode (Devanagari)'
+                        : lang === 'ne'
+                          ? 'सुझाव: स्रोत फन्ट प्रीति (Preeti) हुनुपर्छ'
+                          : 'Suggestion: Input looks like Preeti font text'}
+                    </strong>{' '}
+                    <span className="text-indigo-700 dark:text-indigo-300">
+                      ·{' '}
+                      {lang === 'ne'
+                        ? sourceFontDetection.reasonNe
+                        : sourceFontDetection.reasonEn}
+                    </span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplySuggestedSourceFont}
+                  className="inline-flex min-h-[32px] items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                >
+                  {sourceFontDetection.suggestedFont === 'unicode'
+                    ? lang === 'ne'
+                      ? 'युनिकोडमा बदल्नुहोस्'
+                      : 'Switch to Unicode'
+                    : lang === 'ne'
+                      ? 'प्रीतिमा बदल्नुहोस्'
+                      : 'Switch to Preeti'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1471,6 +1674,7 @@ export function ConverterWorkspace({
             ref={inputRef}
             id="converter-source-input"
             value={inputText}
+            onBeforeInput={handleInputBeforeInput}
             onKeyDown={handleInputKeyDown}
             onKeyUp={handleInputKeyUp}
             onChange={handleInputChange}
@@ -1478,6 +1682,8 @@ export function ConverterWorkspace({
             onBlur={() => {
               altDigitsRef.current = '';
               altConsumedRef.current = false;
+              isAltHeldRef.current = false;
+              pendingAltEchoUntilRef.current = 0;
               setAltDigitsPreview('');
               resetPreetiBuffer();
             }}

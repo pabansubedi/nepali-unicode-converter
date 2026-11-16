@@ -914,3 +914,142 @@ export function computeTextMetrics(text: string): TextMetrics {
     sentences,
   };
 }
+
+export interface SourceFontDetectionResult {
+  suggestedFont: 'preeti' | 'unicode' | null;
+  confidence: 'high' | 'medium' | 'low';
+  devanagariCount: number;
+  preetiScore: number;
+  reasonEn: string;
+  reasonNe: string;
+}
+
+const PREETI_SIGNATURE_TOKENS = [
+  'g]kfn',
+  'sf]',
+  'xf]',
+  'nfO{',
+  'cf]',
+  'cf}',
+  'O{',
+  'P]',
+  'pm',
+  'cf',
+  'k|',
+  'em',
+  'km',
+  'If',
+  'if',
+  '0f',
+  'f]',
+  'f}',
+  'kl/',
+  'ljsf;',
+  'dfq',
+  ';dfh',
+  'xfd|f]',
+  '5g\\',
+];
+
+export function detectMostLikelySourceFont(
+  text: string,
+): SourceFontDetectionResult {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return {
+      suggestedFont: null,
+      confidence: 'low',
+      devanagariCount: 0,
+      preetiScore: 0,
+      reasonEn: '',
+      reasonNe: '',
+    };
+  }
+
+  const devanagariMatches = trimmed.match(/[\u0900-\u097F]/g);
+  const devanagariCount = devanagariMatches ? devanagariMatches.length : 0;
+
+  // Ignore purely numeric / punctuation strings without Preeti markers
+  if (devanagariCount === 0 && /^[0-9\s.,:!?()\-–—]+$/.test(trimmed)) {
+    return {
+      suggestedFont: null,
+      confidence: 'low',
+      devanagariCount: 0,
+      preetiScore: 0,
+      reasonEn: '',
+      reasonNe: '',
+    };
+  }
+
+  let preetiScore = 0;
+
+  for (const token of PREETI_SIGNATURE_TOKENS) {
+    if (trimmed.includes(token)) {
+      preetiScore += 4;
+    }
+  }
+
+  // Vowel modifiers and conjunct characters adjacent to letters/digits in Preeti
+  const modifierMatches = trimmed.match(
+    /[a-zA-Z0-9][\]}{['"\\|;+]|[\]}{['"\\|;+][a-zA-Z0-9]/g,
+  );
+  if (modifierMatches) {
+    preetiScore += modifierMatches.length * 3;
+  }
+
+  // Digits embedded in words (e.g., 0f, 3/, 5g, a9, 8f, 6, 7)
+  const embeddedDigits = trimmed.match(
+    /[a-zA-Z][0356789]|[0356789][a-zA-Z]|(?:^|\s)5(?:\s|$)/g,
+  );
+  if (embeddedDigits) {
+    preetiScore += embeddedDigits.length * 3;
+  }
+
+  // Extended Windows-1252 Preeti characters (Alt+0xxx glyphs)
+  const extendedChars = trimmed.match(/[\u00A1-\u00FF]/g);
+  if (extendedChars) {
+    preetiScore += extendedChars.length * 4;
+  }
+
+  // Preeti 'f' (aa-matra) or leading 'l' (hraswo-i) word structures
+  const aaOrI = trimmed.match(/\b[a-zA-Z]f\b|\bl[a-zA-Z0-9]{2,}/g);
+  if (aaOrI) {
+    preetiScore += aaOrI.length * 2;
+  }
+
+  // Devanagari Unicode dominates whenever script characters are present without overwhelming Preeti noise
+  if (devanagariCount > 0 && (devanagariCount >= preetiScore || preetiScore < 4)) {
+    const confidence =
+      devanagariCount >= 5 ? 'high' : devanagariCount >= 2 ? 'medium' : 'low';
+    return {
+      suggestedFont: 'unicode',
+      confidence,
+      devanagariCount,
+      preetiScore,
+      reasonEn: `Detected ${devanagariCount} Devanagari Unicode character${devanagariCount === 1 ? '' : 's'}`,
+      reasonNe: `इनपुटमा ${toNepaliDigits(String(devanagariCount))} देवनागरी युनिकोड अक्षर भेटियो`,
+    };
+  }
+
+  if (preetiScore >= 2) {
+    const confidence =
+      preetiScore >= 6 ? 'high' : preetiScore >= 3 ? 'medium' : 'low';
+    return {
+      suggestedFont: 'preeti',
+      confidence,
+      devanagariCount,
+      preetiScore,
+      reasonEn: 'Detected Preeti / legacy Nepali keystroke patterns',
+      reasonNe: 'इनपुटमा प्रीति (Preeti) फन्ट कोडको ढाँचा भेटियो',
+    };
+  }
+
+  return {
+    suggestedFont: null,
+    confidence: 'low',
+    devanagariCount,
+    preetiScore,
+    reasonEn: '',
+    reasonNe: '',
+  };
+}

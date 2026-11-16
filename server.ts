@@ -16,18 +16,56 @@ const SESSION_TTL_MS = 35_000;
 
 const activeSessions = new Map<string, SessionEntry>();
 
-// Realistic 50+ active-user baseline that organically fluctuates over time
-let communityBaseline = 54 + Math.floor(Math.random() * 14); // 54–67 initial
+function getNepalHour(): number {
+  const now = new Date();
+  const nptMinutes = (now.getUTCHours() * 60 + now.getUTCMinutes() + 345) % 1440;
+  return nptMinutes / 60;
+}
+
+function getTargetBaselineForHour(hour: number): {min: number; max: number} {
+  // Late night / early morning in Nepal: quiet (can drop to 0 extra = 1 real user online)
+  if (hour >= 0 && hour < 6) {
+    return {min: 0, max: 9};
+  }
+  // Early morning ramp-up or late evening wind-down
+  if ((hour >= 6 && hour < 8.5) || (hour >= 21.5 && hour < 24)) {
+    return {min: 6, max: 36};
+  }
+  // Active daytime & office/study hours in Nepal: 50+ typical, with occasional quiet dips
+  return {min: 49, max: 78};
+}
+
+let organicBaseline = (() => {
+  const {min, max} = getTargetBaselineForHour(getNepalHour());
+  return min + Math.floor(Math.random() * Math.max(1, max - min + 1));
+})();
+
+// Occasionally simulate a brief realistic quiet lull even during the day, or smooth natural drift
+let lullTicksRemaining = 0;
 
 function stepCommunityBaseline(): boolean {
-  const prev = communityBaseline;
-  // Weighted step: mostly -1, 0, +1, occasional -2 or +2 for natural movement
+  const prev = organicBaseline;
+  const {min, max} = getTargetBaselineForHour(getNepalHour());
+
+  if (lullTicksRemaining > 0) {
+    lullTicksRemaining -= 1;
+    if (organicBaseline > 0) {
+      organicBaseline = Math.max(0, organicBaseline - (Math.random() < 0.65 ? 2 : 1));
+    }
+    return organicBaseline !== prev;
+  }
+
+  // Rare brief realistic quiet drop (~1.5% chance per tick)
+  if (organicBaseline > 5 && Math.random() < 0.015) {
+    lullTicksRemaining = 4 + Math.floor(Math.random() * 5);
+  }
+
   const deltas = [-2, -1, -1, 0, 1, 1, 2];
   let delta = deltas[Math.floor(Math.random() * deltas.length)];
-  if (communityBaseline <= 53 && delta < 0) delta = 1;
-  if (communityBaseline >= 86 && delta > 0) delta = -1;
-  communityBaseline = Math.max(51, Math.min(92, communityBaseline + delta));
-  return communityBaseline !== prev;
+  if (organicBaseline < min) delta = Math.random() < 0.75 ? 2 : 1;
+  if (organicBaseline > max) delta = -1;
+  organicBaseline = Math.max(0, Math.min(88, organicBaseline + delta));
+  return organicBaseline !== prev;
 }
 
 function sanitizeSessionId(raw: unknown): string {
@@ -38,7 +76,7 @@ function sanitizeSessionId(raw: unknown): string {
 }
 
 function getActiveCount(): number {
-  return communityBaseline + activeSessions.size;
+  return Math.max(0, organicBaseline + activeSessions.size);
 }
 
 function broadcastCount(wss: WebSocketServer): void {
@@ -217,7 +255,16 @@ async function startServer(): Promise<void> {
     });
   } else {
     const vite = await createViteServer({
-      server: {middlewareMode: true},
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null,
+        allowedHosts: true,
+        ws: {
+          server,
+          path: '/__vite_hmr',
+        },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {Check, Copy, History, RotateCcw, Trash2, X} from 'lucide-react';
+import {Check, Copy, Download, History, RotateCcw, Trash2, X} from 'lucide-react';
 import type {HistoryItem} from '../utils/conversionHistory';
 
 interface RecentConversionsPanelProps {
@@ -18,6 +18,7 @@ export function RecentConversionsPanel({
   onClearAll,
 }: RecentConversionsPanelProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [exported, setExported] = useState<boolean>(false);
 
   const handleCopyItem = async (item: HistoryItem) => {
     if (!item.output) return;
@@ -32,13 +33,37 @@ export function RecentConversionsPanel({
     }
   };
 
+  const handleExportJson = () => {
+    if (items.length === 0) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      source: 'unicode.pabansubedi.com.np',
+      count: items.length,
+      items,
+    };
+    const jsonText = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonText], {
+      type: 'application/json;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nepali-conversion-history-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setExported(true);
+    window.setTimeout(() => setExported(false), 1800);
+  };
+
   return (
     <section
       id="recent-conversions"
       aria-label={lang === 'ne' ? 'हालसालैका रूपान्तरण इतिहास' : 'Recent Conversions History'}
       className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#0D131F]"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <History
             className="h-4 w-4 text-red-700 dark:text-red-400"
@@ -50,14 +75,47 @@ export function RecentConversionsPanel({
         </div>
 
         {items.length > 0 && (
-          <button
-            type="button"
-            onClick={onClearAll}
-            className="inline-flex min-h-[28px] items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
-          >
-            <Trash2 className="h-3 w-3" aria-hidden="true" />
-            <span>{lang === 'ne' ? 'हटाउनुहोस्' : 'Clear'}</span>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleExportJson}
+              title={
+                lang === 'ne'
+                  ? 'सम्पूर्ण इतिहास JSON फाइलमा ब्याकअप गर्नुहोस्'
+                  : 'Export entire history list as JSON backup'
+              }
+              aria-label={
+                lang === 'ne'
+                  ? 'इतिहास JSON फाइल निर्यात गर्नुहोस्'
+                  : 'Export conversion history as JSON'
+              }
+              className="inline-flex min-h-[28px] items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/50"
+            >
+              {exported ? (
+                <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              ) : (
+                <Download className="h-3 w-3" aria-hidden="true" />
+              )}
+              <span>
+                {exported
+                  ? lang === 'ne'
+                    ? 'सेभ भयो'
+                    : 'Saved!'
+                  : lang === 'ne'
+                    ? 'JSON'
+                    : 'Export JSON'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClearAll}
+              className="inline-flex min-h-[28px] items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+            >
+              <Trash2 className="h-3 w-3" aria-hidden="true" />
+              <span>{lang === 'ne' ? 'हटाउनुहोस्' : 'Clear'}</span>
+            </button>
+          </div>
         )}
       </div>
 

@@ -67,7 +67,11 @@ export function LiveNepalTime({variant, lang, liveCount}: LiveNepalTimeProps) {
               {formattedCount}
             </span>
             <span className="font-nepali text-xs font-semibold text-emerald-200/90">
-              {lang === 'ne' ? 'जना अनलाइन' : 'users online now'}
+              {lang === 'ne'
+                ? 'जना अनलाइन'
+                : activeCount === 1
+                  ? 'user online now'
+                  : 'users online now'}
             </span>
           </div>
           <div className="font-mono-tabular text-[11px] text-slate-300/90">
