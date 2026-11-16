@@ -25,8 +25,23 @@ export interface PreetiAltCodeMeta {
 }
 
 export const PREETI_ALT_CODES: PreetiAltCodeMeta[] = [
+  {code: '0161', altLabel: 'Alt+0161', asciiChar: '¡', unicode: 'ज्ञ्', labelEn: 'Half Gya (ज्ञ्)', labelNe: 'ज्ञ्'},
+  {code: '0162', altLabel: 'Alt+0162', asciiChar: '¢', unicode: 'द्ध', labelEn: 'Ddha (द्ध)', labelNe: 'द्ध'},
+  {code: '0163', altLabel: 'Alt+0163', asciiChar: '£', unicode: 'घ्', labelEn: 'Half Gha (घ्)', labelNe: 'घ्'},
+  {code: '0164', altLabel: 'Alt+0164', asciiChar: '¤', unicode: 'द्ध', labelEn: 'Ddha (द्ध)', labelNe: 'द्ध'},
+  {code: '0165', altLabel: 'Alt+0165', asciiChar: '¥', unicode: 'छ्', labelEn: 'Half Chha (छ्)', labelNe: 'छ्'},
+  {code: '0166', altLabel: 'Alt+0166', asciiChar: '¦', unicode: 'ट्ठ', labelEn: 'Tttha (ट्ठ)', labelNe: 'ट्ठ'},
+  {code: '0167', altLabel: 'Alt+0167', asciiChar: '§', unicode: 'ट्ट', labelEn: 'Tta-Tta (ट्ट)', labelNe: 'ट्ट'},
+  {code: '0168', altLabel: 'Alt+0168', asciiChar: '¨', unicode: 'ड्ड', labelEn: 'Dda-Dda (ड्ड)', labelNe: 'ड्ड'},
+  {code: '0169', altLabel: 'Alt+0169', asciiChar: '©', unicode: 'ढ्ढ', labelEn: 'Ddha-Ddha (ढ्ढ)', labelNe: 'ढ्ढ'},
   {code: '0170', altLabel: 'Alt+0170', asciiChar: 'ª', unicode: 'ङ', labelEn: 'Nga (ङ)', labelNe: 'ङ'},
   {code: '0171', altLabel: 'Alt+0171', asciiChar: '«', unicode: '\u094D\u0930', labelEn: 'Rakar (ट्र/ड्र)', labelNe: '्र (ट/ड मुनि)'},
+  {code: '0172', altLabel: 'Alt+0172', asciiChar: '¬', unicode: 'ङ्क', labelEn: 'Nka (ङ्क)', labelNe: 'ङ्क'},
+  {code: '0174', altLabel: 'Alt+0174', asciiChar: '®', unicode: 'र्', labelEn: 'Reph (र्)', labelNe: 'र्'},
+  {code: '0176', altLabel: 'Alt+0176', asciiChar: '°', unicode: 'ङ्ग', labelEn: 'Nga-Ga (ङ्ग)', labelNe: 'ङ्ग'},
+  {code: '0177', altLabel: 'Alt+0177', asciiChar: '±', unicode: '+', labelEn: 'Plus (+)', labelNe: '+ (जोड)'},
+  {code: '0178', altLabel: 'Alt+0178', asciiChar: '²', unicode: 'द्द', labelEn: 'Dda (द्द)', labelNe: 'द्द'},
+  {code: '0179', altLabel: 'Alt+0179', asciiChar: '³', unicode: 'द्य', labelEn: 'Dya (द्य)', labelNe: 'द्य'},
   {code: '0180', altLabel: 'Alt+0180', asciiChar: '´', unicode: 'झ', labelEn: 'Jha (झ)', labelNe: 'झ'},
   {code: '0181', altLabel: 'Alt+0181', asciiChar: 'µ', unicode: 'ह्र', labelEn: 'Hra (ह्र)', labelNe: 'ह्र'},
   {code: '0182', altLabel: 'Alt+0182', asciiChar: '¶', unicode: 'हृ', labelEn: 'Hri (हृ)', labelNe: 'हृ'},
@@ -35,9 +50,22 @@ export const PREETI_ALT_CODES: PreetiAltCodeMeta[] = [
   {code: '0185', altLabel: 'Alt+0185', asciiChar: '¹', unicode: 'ह्य', labelEn: 'Hya (ह्य)', labelNe: 'ह्य'},
   {code: '0186', altLabel: 'Alt+0186', asciiChar: 'º', unicode: 'ह्व', labelEn: 'Hwa (ह्व)', labelNe: 'ह्व'},
   {code: '0187', altLabel: 'Alt+0187', asciiChar: '»', unicode: 'ह्न', labelEn: 'Hna (ह्न)', labelNe: 'ह्न'},
+  {code: '0188', altLabel: 'Alt+0188', asciiChar: '¼', unicode: '(', labelEn: 'Left Paren (', labelNe: '( कोष्ठक'},
+  {code: '0189', altLabel: 'Alt+0189', asciiChar: '½', unicode: ')', labelEn: 'Right Paren )', labelNe: ') कोष्ठक'},
   {code: '0190', altLabel: 'Alt+0190', asciiChar: '¾', unicode: 'ह्ल', labelEn: 'Hla (ह्ल)', labelNe: 'ह्ल'},
   {code: '0191', altLabel: 'Alt+0191', asciiChar: '¿', unicode: 'रू', labelEn: 'Dirgha Ru (रू)', labelNe: 'रू (दीर्घ)'},
+  {code: '0193', altLabel: 'Alt+0193', asciiChar: 'Á', unicode: 'क्ष्', labelEn: 'Half Ksha (क्ष्)', labelNe: 'क्ष्'},
+  {code: '0194', altLabel: 'Alt+0194', asciiChar: 'Â', unicode: 'हृ', labelEn: 'Hri (हृ)', labelNe: 'हृ'},
+  {code: '0195', altLabel: 'Alt+0195', asciiChar: 'Ã', unicode: 'त्र्', labelEn: 'Half Tra (त्र्)', labelNe: 'त्र्'},
+  {code: '0196', altLabel: 'Alt+0196', asciiChar: 'Ä', unicode: 'ङ्ख', labelEn: 'Nkha (ङ्ख)', labelNe: 'ङ्ख'},
   {code: '0197', altLabel: 'Alt+0197', asciiChar: 'Å', unicode: 'हृ', labelEn: 'Hri (हृदय)', labelNe: 'हृ (हृदय)'},
+  {code: '0198', altLabel: 'Alt+0198', asciiChar: 'Æ', unicode: 'द्घ', labelEn: 'Dgha (द्घ)', labelNe: 'द्घ'},
+  {code: '0199', altLabel: 'Alt+0199', asciiChar: 'Ç', unicode: 'ठ्ठ', labelEn: 'Ttha-Ttha (ठ्ठ)', labelNe: 'ठ्ठ'},
+  {code: '0200', altLabel: 'Alt+0200', asciiChar: 'È', unicode: 'ड्ड', labelEn: 'Dda-Dda (ड्ड)', labelNe: 'ड्ड'},
+  {code: '0201', altLabel: 'Alt+0201', asciiChar: 'É', unicode: 'ढ्ढ', labelEn: 'Ddha-Ddha (ढ्ढ)', labelNe: 'ढ्ढ'},
+  {code: '0202', altLabel: 'Alt+0202', asciiChar: 'Ê', unicode: 'द्म', labelEn: 'Dma (द्म)', labelNe: 'द्म'},
+  {code: '0203', altLabel: 'Alt+0203', asciiChar: 'Ë', unicode: 'द्व', labelEn: 'Dwa (द्व)', labelNe: 'द्व'},
+  {code: '0204', altLabel: 'Alt+0204', asciiChar: 'Ì', unicode: 'ॐ', labelEn: 'Om (ॐ)', labelNe: 'ॐ'},
   {code: '0205', altLabel: 'Alt+0205', asciiChar: 'Í', unicode: 'ङ्क', labelEn: 'Nka (ङ्क)', labelNe: 'ङ्क'},
   {code: '0206', altLabel: 'Alt+0206', asciiChar: 'Î', unicode: 'ङ्ख', labelEn: 'Nkha (ङ्ख)', labelNe: 'ङ्ख'},
   {code: '0207', altLabel: 'Alt+0207', asciiChar: 'Ï', unicode: 'ङ्ग', labelEn: 'Nga-Ga (ङ्ग)', labelNe: 'ङ्ग'},
@@ -52,33 +80,37 @@ export const PREETI_ALT_CODES: PreetiAltCodeMeta[] = [
   {code: '0216', altLabel: 'Alt+0216', asciiChar: 'Ø', unicode: 'ह्म', labelEn: 'Hma (ह्म)', labelNe: 'ह्म'},
   {code: '0217', altLabel: 'Alt+0217', asciiChar: 'Ù', unicode: 'ह्य', labelEn: 'Hya (ह्य)', labelNe: 'ह्य'},
   {code: '0218', altLabel: 'Alt+0218', asciiChar: 'Ú', unicode: 'ऊ', labelEn: 'Dirgha U (ऊ)', labelNe: 'ऊ'},
+  {code: '0219', altLabel: 'Alt+0219', asciiChar: 'Û', unicode: 'ह्व', labelEn: 'Hwa (ह्व)', labelNe: 'ह्व'},
+  {code: '0220', altLabel: 'Alt+0220', asciiChar: 'Ü', unicode: 'ह्ल', labelEn: 'Hla (ह्ल)', labelNe: 'ह्ल'},
   {code: '0221', altLabel: 'Alt+0221', asciiChar: 'Ý', unicode: 'ॐ', labelEn: 'Om (ॐ)', labelNe: 'ॐ'},
   {code: '0222', altLabel: 'Alt+0222', asciiChar: 'Þ', unicode: 'द्घ', labelEn: 'Dgha (द्घ)', labelNe: 'द्घ'},
   {code: '0223', altLabel: 'Alt+0223', asciiChar: 'ß', unicode: 'त्त', labelEn: 'Tta (त्त)', labelNe: 'त्त'},
-  {code: '0161', altLabel: 'Alt+0161', asciiChar: '¡', unicode: 'ज्ञ्', labelEn: 'Half Gya (ज्ञ्)', labelNe: 'ज्ञ्'},
-  {code: '0163', altLabel: 'Alt+0163', asciiChar: '£', unicode: 'घ्', labelEn: 'Half Gha (घ्)', labelNe: 'घ्'},
-  {code: '0164', altLabel: 'Alt+0164', asciiChar: '¤', unicode: 'द्ध', labelEn: 'Ddha (द्ध)', labelNe: 'द्ध'},
-  {code: '0165', altLabel: 'Alt+0165', asciiChar: '¥', unicode: 'छ्', labelEn: 'Half Chha (छ्)', labelNe: 'छ्'},
-  {code: '0167', altLabel: 'Alt+0167', asciiChar: '§', unicode: 'ट्ट', labelEn: 'Tta-Tta (ट्ट)', labelNe: 'ट्ट'},
-  {code: '0172', altLabel: 'Alt+0172', asciiChar: '¬', unicode: 'ङ्क', labelEn: 'Nka (ङ्क)', labelNe: 'ङ्क'},
-  {code: '0176', altLabel: 'Alt+0176', asciiChar: '°', unicode: 'ङ्ग', labelEn: 'Nga-Ga (ङ्ग)', labelNe: 'ङ्ग'},
-  {code: '0177', altLabel: 'Alt+0177', asciiChar: '±', unicode: '+', labelEn: 'Plus (+)', labelNe: '+ (जोड)'},
-  {code: '0178', altLabel: 'Alt+0178', asciiChar: '²', unicode: 'द्द', labelEn: 'Dda (द्द)', labelNe: 'द्द'},
-  {code: '0179', altLabel: 'Alt+0179', asciiChar: '³', unicode: 'द्य', labelEn: 'Dya (द्य)', labelNe: 'द्य'},
-  {code: '0188', altLabel: 'Alt+0188', asciiChar: '¼', unicode: '(', labelEn: 'Left Paren (', labelNe: '( कोष्ठक'},
-  {code: '0189', altLabel: 'Alt+0189', asciiChar: '½', unicode: ')', labelEn: 'Right Paren )', labelNe: ') कोष्ठक'},
+  {code: '0226', altLabel: 'Alt+0226', asciiChar: 'â', unicode: 'द्य', labelEn: 'Dya (द्य)', labelNe: 'द्य'},
+  {code: '0228', altLabel: 'Alt+0228', asciiChar: 'ä', unicode: 'ड्ड', labelEn: 'Dda-Dda (ड्ड)', labelNe: 'ड्ड'},
+  {code: '0230', altLabel: 'Alt+0230', asciiChar: 'æ', unicode: 'द्म', labelEn: 'Dma (द्म)', labelNe: 'द्म'},
+  {code: '0231', altLabel: 'Alt+0231', asciiChar: 'ç', unicode: 'हृ', labelEn: 'Hri (हृ)', labelNe: 'हृ'},
   {code: '0247', altLabel: 'Alt+0247', asciiChar: '÷', unicode: '/', labelEn: 'Slash (/)', labelNe: '/ (स्ल्यास)'},
+  {code: '0250', altLabel: 'Alt+0250', asciiChar: 'ú', unicode: 'ऊ', labelEn: 'Dirgha U (ऊ)', labelNe: 'ऊ'},
+  {code: '0252', altLabel: 'Alt+0252', asciiChar: 'ü', unicode: 'ॐ', labelEn: 'Om (ॐ)', labelNe: 'ॐ'},
 ];
 
 export function resolvePreetiAltCode(digits: string): PreetiAltCodeMeta | null {
   const cleaned = digits.trim();
   if (!cleaned) return null;
-  const padded = cleaned.length === 3 ? `0${cleaned}` : cleaned;
+  const padded = cleaned.length <= 3 ? cleaned.padStart(4, '0') : cleaned;
   return (
     PREETI_ALT_CODES.find(
       (item) => item.code === padded || String(Number(item.code)) === cleaned,
     ) ?? null
   );
+}
+
+export function resolveExtendedPreetiChar(ch: string): string | null {
+  if (!ch || ch.length !== 1) return null;
+  const code = ch.charCodeAt(0);
+  if (code < 161 || code > 255) return null;
+  const found = PREETI_ALT_CODES.find((item) => item.asciiChar === ch);
+  return found ? found.unicode : null;
 }
 
 export const NEPALI_FONTS: FontMeta[] = [

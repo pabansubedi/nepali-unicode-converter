@@ -70,7 +70,9 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
     if (days < 0) {
       months -= 1;
       const prevMonthIdx = (clock.bs.month - 2 + 12) % 12;
-      days += getBSMonthDays(clock.bs.year)[prevMonthIdx] ?? 30;
+      const prevMonthYear =
+        clock.bs.month === 1 ? clock.bs.year - 1 : clock.bs.year;
+      days += getBSMonthDays(prevMonthYear)[prevMonthIdx] ?? 30;
     }
     if (months < 0) {
       years -= 1;
@@ -105,7 +107,7 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
     <section
       id="date-time"
       aria-label="Nepali Date Converter and Live Nepal Time"
-      className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-[#0D131F]"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
         <div>
@@ -132,21 +134,21 @@ export function DateTimePanel({clock, lang}: DateTimePanelProps) {
       </div>
 
       {/* Unified Live Nepal Time & Today Summary */}
-      <div className="mt-5 grid grid-cols-1 gap-5 rounded-xl bg-slate-50/80 p-4 md:grid-cols-2 md:gap-0 md:divide-x md:divide-slate-200 dark:bg-slate-950/60 dark:md:divide-slate-800">
+      <div className="mt-5 grid grid-cols-1 gap-5 rounded-xl border border-indigo-200/80 bg-gradient-to-r from-indigo-50/85 via-slate-50 to-rose-50/70 p-4 md:grid-cols-2 md:gap-0 md:divide-x md:divide-indigo-200/70 dark:border-indigo-900/60 dark:from-[#0C152B] dark:via-[#0D1322] dark:to-[#1C101B] dark:md:divide-slate-800">
         <div className="md:pr-6">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <Clock className="h-3.5 w-3.5 text-red-700 dark:text-red-400" aria-hidden="true" />
+          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+            <Clock className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{lang === 'ne' ? 'नेपालको वर्तमान समय (NPT)' : 'Nepal Standard Time (Asia/Kathmandu)'}</span>
           </div>
           <LiveNepalTime variant="panel" lang={lang} />
         </div>
 
         <div className="md:pl-6">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <Calendar className="h-3.5 w-3.5 text-red-700 dark:text-red-400" aria-hidden="true" />
+          <div className="flex items-center gap-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
+            <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{lang === 'ne' ? 'आजको नेपाली र अंग्रेजी मिति' : "Today's Nepali & English Date"}</span>
           </div>
-          <div className="font-nepali mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+          <div className="font-nepali mt-1.5 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             {clock.bs.formattedNe}
           </div>
           <div className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">

@@ -107,7 +107,7 @@ export function GuideAndFaq({
       {/* Supported Fonts & Keyboard Cheat Sheet */}
       <section
         id="typing-guide"
-        className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-[#0D131F]"
       >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
           <div>
@@ -209,8 +209,10 @@ export function GuideAndFaq({
                   key={row.key}
                   className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                 >
-                  <td className="font-mono-tabular py-2.5 pr-4 font-medium text-slate-800 dark:text-slate-200">
-                    {row.key}
+                  <td className="py-2.5 pr-4">
+                    <kbd className="font-mono-tabular inline-block rounded-md border border-slate-200 border-b-2 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      {row.key}
+                    </kbd>
                   </td>
                   <td className="font-nepali py-2.5 pr-4 text-sm font-semibold text-red-700 dark:text-red-400">
                     {row.char}
@@ -228,7 +230,7 @@ export function GuideAndFaq({
       {/* FAQ Section */}
       <section
         id="faq"
-        className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-[#0D131F]"
       >
         <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
           {lang === 'ne'

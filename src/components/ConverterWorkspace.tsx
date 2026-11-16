@@ -1,15 +1,18 @@
-import {useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ArrowLeftRight,
   Check,
   ClipboardPaste,
+  Code2,
   Copy,
   Download,
   FileText,
   Maximize2,
   Minimize2,
   Printer,
+  Search,
   Sparkles,
+  Terminal,
   Trash2,
   Undo2,
   Upload,
@@ -28,6 +31,7 @@ import {
   type NepaliFontId,
   PREETI_ALT_CODES,
   preetiToUnicode,
+  resolveExtendedPreetiChar,
   resolvePreetiAltCode,
   sortNepaliLines,
   toEnglishDigits,
@@ -37,6 +41,11 @@ import {
   ROMANIZED_EXAMPLES,
   romanizedToUnicode,
 } from '../utils/romanizedEngine';
+import {CodeInspectorDrawer} from './CodeInspectorDrawer';
+import {
+  CommandPaletteModal,
+  type PaletteActionKind,
+} from './CommandPaletteModal';
 
 export type {WorkspaceMode};
 
@@ -48,6 +57,8 @@ interface ConverterWorkspaceProps {
   onSaveHistory: (item: HistoryItem) => void;
   restoreRequest?: {item: HistoryItem; nonce: number} | null;
   onPrintOutput?: (text: string) => void;
+  onToggleTheme?: () => void;
+  onToggleLang?: () => void;
 }
 
 const QUICK_SYMBOLS = [
@@ -90,6 +101,8 @@ export function ConverterWorkspace({
   onSaveHistory,
   restoreRequest,
   onPrintOutput,
+  onToggleTheme,
+  onToggleLang,
 }: ConverterWorkspaceProps) {
   const [fromFont, setFromFont] = useState<NepaliFontId>('preeti');
   const [toFont, setToFont] = useState<NepaliFontId>('unicode');
@@ -106,6 +119,14 @@ export function ConverterWorkspace({
   const [pasted, setPasted] = useState<boolean>(false);
   const [expanded, setExpanded] = useState<boolean>(false);
   const [showAltPalette, setShowAltPalette] = useState<boolean>(false);
+  const [altSearch, setAltSearch] = useState<string>('');
+  const [showFindBar, setShowFindBar] = useState<boolean>(false);
+  const [findPattern, setFindPattern] = useState<string>('');
+  const [replacePattern, setReplacePattern] = useState<string>('');
+  const [findRegexMode, setFindRegexMode] = useState<boolean>(true);
+  const [findCaseSensitive, setFindCaseSensitive] = useState<boolean>(false);
+  const [showInspector, setShowInspector] = useState<boolean>(false);
+  const [paletteOpen, setPaletteOpen] = useState<boolean>(false);
   const [altDigitsPreview, setAltDigitsPreview] = useState<string>('');
   const [undoSnapshot, setUndoSnapshot] = useState<string | null>(null);
 
@@ -117,6 +138,7 @@ export function ConverterWorkspace({
   const wordStartRef = useRef<number>(0);
   const wordEndRef = useRef<number>(0);
   const altDigitsRef = useRef<string>('');
+  const altConsumedRef = useRef<boolean>(false);
   const skipNextModeResetRef = useRef<boolean>(false);
 
   const resetPreetiBuffer = () => {
@@ -410,25 +432,47 @@ export function ConverterWorkspace({
 
   const commitAltCodeInsert = (digits: string) => {
     const match = resolvePreetiAltCode(digits);
-    if (!match) return;
+    if (!match) return false;
+    if (isVisualPreetiActive && inputRef.current) {
+      applyPreetiKeyToText(match.asciiChar, inputRef.current);
+      return true;
+    }
     const textToInsert =
       isLegacySourceMode && !preetiVisualTyping ? match.asciiChar : match.unicode;
     handleInsertSymbol(textToInsert);
+    return true;
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Capture Alt + 0xxx shortcut codes directly inside the editor (works even without Numpad)
-    if (e.altKey && !e.ctrlKey && !e.metaKey) {
-      if (/^[0-9]$/.test(e.key)) {
+    // Capture Alt + 0xxx shortcut codes reliably across Numpad (NumLock on/off), top-row Digits, Mac Option, and Right-Alt (AltGraph)
+    const isAltGraph = Boolean(e.getModifierState?.('AltGraph'));
+    const isAltPressed = e.altKey || isAltGraph;
+    if (isAltPressed && (!e.ctrlKey || isAltGraph) && !e.metaKey) {
+      const codeDigitMatch = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+      const altDigit = /^[0-9]$/.test(e.key)
+        ? e.key
+        : (codeDigitMatch?.[1] ?? null);
+
+      if (altDigit !== null) {
         e.preventDefault();
-        const nextDigits = (altDigitsRef.current + e.key).slice(0, 4);
+        e.stopPropagation();
+        altConsumedRef.current = true;
+        const nextDigits = (altDigitsRef.current + altDigit).slice(0, 4);
         altDigitsRef.current = nextDigits;
         setAltDigitsPreview(nextDigits);
-        if (nextDigits.length === 4 && resolvePreetiAltCode(nextDigits)) {
+        if (nextDigits.length === 4) {
           commitAltCodeInsert(nextDigits);
           altDigitsRef.current = '';
           setAltDigitsPreview('');
         }
+        return;
+      }
+
+      if (e.key === 'Backspace' && altDigitsRef.current.length > 0) {
+        e.preventDefault();
+        const trimmed = altDigitsRef.current.slice(0, -1);
+        altDigitsRef.current = trimmed;
+        setAltDigitsPreview(trimmed);
         return;
       }
     }
@@ -436,7 +480,7 @@ export function ConverterWorkspace({
     if (!isVisualPreetiActive) return;
     const el = e.currentTarget;
 
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || isAltPressed) return;
 
     if (e.key === ' ' || e.key === 'Enter' || e.key === 'Tab') {
       resetPreetiBuffer();
@@ -483,24 +527,47 @@ export function ConverterWorkspace({
   };
 
   const handleInputKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Alt' && altDigitsRef.current) {
-      commitAltCodeInsert(altDigitsRef.current);
-      altDigitsRef.current = '';
-      setAltDigitsPreview('');
+    if (e.key === 'Alt' || e.key === 'AltGraph') {
+      if (altConsumedRef.current || altDigitsRef.current) {
+        e.preventDefault();
+      }
+      if (altDigitsRef.current) {
+        commitAltCodeInsert(altDigitsRef.current);
+        altDigitsRef.current = '';
+        setAltDigitsPreview('');
+      }
+      altConsumedRef.current = false;
     }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nextVal = e.target.value;
+    const caret = e.target.selectionStart ?? nextVal.length;
 
-    // Mobile virtual keyboard fallback: if a single ASCII char was inserted while in Preeti Visual mode
-    if (isVisualPreetiActive && nextVal.length === inputText.length + 1) {
-      const caret = e.target.selectionStart ?? nextVal.length;
+    // Fallback when OS (Windows Numpad Alt+0xxx or Mac Option) inserts a Latin-1 / Windows-1252 Preeti glyph natively
+    if (caret > 0 && (isVisualPreetiActive || isUnicodeSourceMode)) {
+      const inserted = nextVal[caret - 1];
+      const extUnicode = inserted ? resolveExtendedPreetiChar(inserted) : null;
+      if (extUnicode) {
+        resetPreetiBuffer();
+        const el = e.target;
+        const fixedVal =
+          nextVal.slice(0, caret - 1) + extUnicode + nextVal.slice(caret);
+        const nextCaret = caret - 1 + extUnicode.length;
+        setInputText(fixedVal);
+        window.requestAnimationFrame(() => {
+          el.setSelectionRange(nextCaret, nextCaret);
+        });
+        return;
+      }
+    }
+
+    if (nextVal.length === inputText.length + 1) {
       const inserted = nextVal[caret - 1];
       if (inserted) {
+
         const code = inserted.charCodeAt(0);
-        if (code >= 33 && code <= 126) {
-          // Restore virtual caret relative to previous inputText
+        if (isVisualPreetiActive && code >= 33 && code <= 126) {
           const el = e.target;
           const prevPos = caret - 1;
           if (
@@ -529,7 +596,9 @@ export function ConverterWorkspace({
           return;
         }
       }
-      resetPreetiBuffer();
+      if (isVisualPreetiActive) {
+        resetPreetiBuffer();
+      }
     } else if (isVisualPreetiActive) {
       resetPreetiBuffer();
     }
@@ -596,6 +665,7 @@ export function ConverterWorkspace({
       document.execCommand('copy');
       document.body.removeChild(el);
       setCopied(true);
+      saveSnippetToHistory(activeOutput);
       window.setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -766,6 +836,123 @@ export function ConverterWorkspace({
     onPrintOutput?.(displayedOutput);
   };
 
+  // Regex Find & Replace helpers
+  const findStats = useMemo(() => {
+    if (!findPattern) return {count: 0, error: false};
+    try {
+      const flags = findCaseSensitive ? 'g' : 'gi';
+      const escaped = findPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(findRegexMode ? findPattern : escaped, flags);
+      const matches = inputText.match(regex);
+      return {count: matches ? matches.length : 0, error: false};
+    } catch {
+      return {count: 0, error: true};
+    }
+  }, [findPattern, findRegexMode, findCaseSensitive, inputText]);
+
+  const handleReplaceAll = () => {
+    if (!findPattern || findStats.error) return;
+    try {
+      const flags = findCaseSensitive ? 'g' : 'gi';
+      const escaped = findPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(findRegexMode ? findPattern : escaped, flags);
+      setUndoSnapshot(inputText);
+      setInputText((prev) => prev.replace(regex, replacePattern));
+    } catch {
+      // ignore invalid regex
+    }
+  };
+
+  const filteredAltCodes = useMemo(() => {
+    const q = altSearch.trim().toLowerCase();
+    if (!q) return PREETI_ALT_CODES;
+    return PREETI_ALT_CODES.filter(
+      (item) =>
+        item.code.includes(q) ||
+        item.altLabel.toLowerCase().includes(q) ||
+        item.unicode.includes(q) ||
+        item.labelEn.toLowerCase().includes(q) ||
+        item.labelNe.toLowerCase().includes(q),
+    );
+  }, [altSearch]);
+
+  const latestActionsRef = useRef({
+    handleCopy,
+    handleSwap,
+    applyOutputTransform,
+    clearEditor: () => {
+      resetPreetiBuffer();
+      if (inputText) setUndoSnapshot(inputText);
+      setInputText('');
+      setManualOutput('');
+    },
+    toggleTheme: () => onToggleTheme?.(),
+    toggleLang: () => onToggleLang?.(),
+  });
+  latestActionsRef.current = {
+    handleCopy,
+    handleSwap,
+    applyOutputTransform,
+    clearEditor: () => {
+      resetPreetiBuffer();
+      if (inputText) setUndoSnapshot(inputText);
+      setInputText('');
+      setManualOutput('');
+    },
+    toggleTheme: () => onToggleTheme?.(),
+    toggleLang: () => onToggleLang?.(),
+  };
+
+  const handlePaletteAction = useCallback((kind: PaletteActionKind) => {
+    const acts = latestActionsRef.current;
+    if (kind === 'copy') {
+      void acts.handleCopy();
+    } else if (kind === 'swap') {
+      acts.handleSwap();
+    } else if (kind === 'clear') {
+      acts.clearEditor();
+    } else if (kind === 'find') {
+      setShowFindBar((v) => !v);
+    } else if (kind === 'inspector') {
+      setShowInspector((v) => !v);
+    } else if (kind === 'alt-list') {
+      setShowAltPalette((v) => !v);
+    } else if (kind === 'theme') {
+      acts.toggleTheme();
+    } else if (kind === 'lang') {
+      acts.toggleLang();
+    } else {
+      acts.applyOutputTransform(kind);
+    }
+  }, []);
+
+  // Global Hacker Keyboard Shortcuts (Ctrl+K, Ctrl+Shift+C/S/F/I)
+  useEffect(() => {
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const lower = e.key.toLowerCase();
+      if (lower === 'k' && !e.shiftKey) {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      } else if (e.shiftKey && lower === 'f') {
+        e.preventDefault();
+        setShowFindBar((v) => !v);
+      } else if (e.shiftKey && lower === 'i') {
+        e.preventDefault();
+        setShowInspector((v) => !v);
+      } else if (e.shiftKey && lower === 'c') {
+        e.preventDefault();
+        void latestActionsRef.current.handleCopy();
+      } else if (e.shiftKey && lower === 's') {
+        e.preventDefault();
+        latestActionsRef.current.handleSwap();
+      }
+    };
+    window.addEventListener('keydown', onGlobalKeyDown);
+    return () => window.removeEventListener('keydown', onGlobalKeyDown);
+  }, []);
+
   const modeTabs: Array<{id: WorkspaceMode; en: string; ne: string}> = [
     {id: 'preeti-to-unicode', en: 'Preeti → Unicode', ne: 'प्रीति → युनिकोड'},
     {id: 'unicode-to-preeti', en: 'Unicode → Preeti', ne: 'युनिकोड → प्रीति'},
@@ -803,7 +990,7 @@ export function ConverterWorkspace({
     <section
       id="converter"
       aria-label="Nepali Font and Unicode Converter"
-      className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-6 dark:border-slate-800 dark:bg-slate-900"
+      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6 dark:border-slate-800 dark:bg-[#0D131F]"
     >
       {/* Top Mode Switcher & Studio View Controls */}
       <div className="flex flex-col gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
@@ -811,7 +998,7 @@ export function ConverterWorkspace({
           <div
             role="tablist"
             aria-label="Converter Mode"
-            className="grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100/90 p-1 sm:flex sm:w-auto sm:flex-wrap dark:bg-slate-800/80"
+            className="grid w-full grid-cols-2 gap-1 rounded-xl border border-slate-200/70 bg-slate-100/90 p-1 sm:flex sm:w-auto sm:flex-wrap dark:border-slate-800 dark:bg-[#070A11]"
           >
             {modeTabs.map((tab) => {
               const active = mode === tab.id;
@@ -824,8 +1011,8 @@ export function ConverterWorkspace({
                   onClick={() => onModeChange(tab.id)}
                   className={`min-h-[40px] whitespace-nowrap shrink-0 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
                     active
-                      ? 'bg-white text-red-700 shadow-xs dark:bg-slate-900 dark:text-red-400'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                      ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:bg-white/60 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/60 dark:hover:text-white'
                   }`}
                 >
                   {lang === 'ne' ? tab.ne : tab.en}
@@ -1046,25 +1233,144 @@ export function ConverterWorkspace({
           </button>
         </div>
 
-        {!autoConvert && (
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            onClick={handleManualConvert}
-            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-red-700 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+            onClick={() => setShowFindBar((v) => !v)}
+            title="Ctrl+Shift+F"
+            className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+              showFindBar
+                ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
           >
-            <span>{lang === 'ne' ? 'रूपान्तरण गर्नुहोस्' : 'Convert Now'}</span>
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{lang === 'ne' ? 'Find / Regex' : 'Find / Regex'}</span>
           </button>
-        )}
+
+          <button
+            type="button"
+            onClick={() => setShowInspector((v) => !v)}
+            title="Ctrl+Shift+I"
+            className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+              showInspector
+                ? 'bg-slate-900 text-emerald-400 dark:bg-slate-800'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
+          >
+            <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{lang === 'ne' ? 'कोड इन्स्पेक्टर' : 'Inspector'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPaletteOpen(true)}
+            title="Ctrl+K"
+            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-slate-200/90 bg-slate-50/80 px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            <Terminal className="h-3.5 w-3.5 text-red-700 dark:text-red-400" aria-hidden="true" />
+            <kbd className="font-mono-tabular text-[11px]">Ctrl+K</kbd>
+          </button>
+
+          {!autoConvert && (
+            <button
+              type="button"
+              onClick={handleManualConvert}
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-red-700 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+            >
+              <span>{lang === 'ne' ? 'रूपान्तरण गर्नुहोस्' : 'Convert Now'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
+      {/* Collapsible Regex Find & Replace Power Bar */}
+      {showFindBar && (
+        <div
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setShowFindBar(false);
+            }
+          }}
+          className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/90 p-2.5 dark:border-slate-800 dark:bg-[#080C14]"
+        >
+          <div className="flex min-w-[180px] flex-1 items-center gap-1.5">
+            <input
+              type="text"
+              value={findPattern}
+              onChange={(e) => setFindPattern(e.target.value)}
+              placeholder={lang === 'ne' ? 'खोज्नुहोस् (Regex/Text)...' : 'Find pattern...'}
+              className="font-mono-tabular h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+            <button
+              type="button"
+              onClick={() => setFindRegexMode((v) => !v)}
+              title="Use Regular Expression"
+              className={`font-mono-tabular h-9 rounded-lg border px-2 text-xs font-bold transition-colors ${
+                findRegexMode
+                  ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300'
+                  : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+              }`}
+            >
+              .*
+            </button>
+            <button
+              type="button"
+              onClick={() => setFindCaseSensitive((v) => !v)}
+              title="Match Case"
+              className={`font-mono-tabular h-9 rounded-lg border px-2 text-xs font-bold transition-colors ${
+                findCaseSensitive
+                  ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300'
+                  : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400'
+              }`}
+            >
+              Aa
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={replacePattern}
+            onChange={(e) => setReplacePattern(e.target.value)}
+            placeholder={lang === 'ne' ? 'यसले बदल्नुहोस्...' : 'Replace with...'}
+            className="font-mono-tabular h-9 min-w-[160px] flex-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          />
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`font-mono-tabular text-[11px] font-medium ${
+                findStats.error
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              {findStats.error
+                ? lang === 'ne'
+                  ? 'गलत Regex'
+                  : 'Invalid regex'
+                : `${findStats.count} ${lang === 'ne' ? 'मिल्यो' : 'matches'}`}
+            </span>
+            <button
+              type="button"
+              onClick={handleReplaceAll}
+              disabled={!findPattern || findStats.error || findStats.count === 0}
+              className="h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-40 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              {lang === 'ne' ? 'सबै बदल्नुहोस्' : 'Replace All'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Unified Split-Pane Studio Container */}
-      <div className="mt-3 grid grid-cols-1 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200/90 xl:grid-cols-2 xl:divide-x xl:divide-y-0 dark:divide-slate-800 dark:border-slate-800">
+      <div className="mt-3 grid grid-cols-1 divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 xl:grid-cols-2 xl:divide-x xl:divide-y-0 dark:divide-slate-800 dark:border-slate-800">
         {/* Left Pane: Source Input */}
-        <div className="flex flex-col bg-slate-50/50 transition-colors focus-within:bg-white dark:bg-slate-950/55 dark:focus-within:bg-slate-950">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/75 px-4 py-2.5 dark:border-slate-800">
+        <div className="flex flex-col bg-indigo-50/35 transition-colors focus-within:bg-white dark:bg-[#080D1A] dark:focus-within:bg-[#0B1224]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/75 bg-indigo-50/40 px-4 py-2.5 dark:border-slate-800 dark:bg-[#0C1324]">
             <label
               htmlFor="converter-source-input"
-              className="text-xs font-semibold tracking-tight text-slate-700 dark:text-slate-200"
+              className="text-xs font-bold tracking-tight text-indigo-800 dark:text-indigo-300"
             >
               {sourceLabel}
             </label>
@@ -1169,6 +1475,12 @@ export function ConverterWorkspace({
             onKeyUp={handleInputKeyUp}
             onChange={handleInputChange}
             onPaste={handleInputPaste}
+            onBlur={() => {
+              altDigitsRef.current = '';
+              altConsumedRef.current = false;
+              setAltDigitsPreview('');
+              resetPreetiBuffer();
+            }}
             onClick={() => resetPreetiBuffer()}
             rows={expanded ? 15 : 9}
             style={{fontSize: `${fontSize}px`}}
@@ -1217,14 +1529,14 @@ export function ConverterWorkspace({
         <div
           className={`flex flex-col transition-colors ${
             copied
-              ? 'bg-emerald-50/25 dark:bg-emerald-950/15'
-              : 'bg-white dark:bg-slate-950'
+              ? 'bg-emerald-50/40 dark:bg-emerald-950/25'
+              : 'bg-white dark:bg-[#0F172A]'
           }`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/75 px-4 py-2.5 dark:border-slate-800">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/75 bg-rose-50/35 px-4 py-2.5 dark:border-slate-800 dark:bg-[#131829]">
             <label
               htmlFor="converter-target-output"
-              className="text-xs font-semibold tracking-tight text-slate-700 dark:text-slate-200"
+              className="text-xs font-bold tracking-tight text-rose-800 dark:text-rose-300"
             >
               {targetLabel}
             </label>
@@ -1266,7 +1578,7 @@ export function ConverterWorkspace({
                 onClick={handlePrintClick}
                 disabled={!displayedOutput}
                 aria-label={lang === 'ne' ? 'नतिजा प्रिन्ट गर्नुहोस्' : 'Print output'}
-                className="inline-flex min-h-[32px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex min-h-[32px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50/70 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-500/50 dark:hover:bg-indigo-950/30"
               >
                 <Printer className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">
@@ -1281,8 +1593,8 @@ export function ConverterWorkspace({
                 aria-live="polite"
                 className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-lg px-3.5 py-1 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 ${
                   copied
-                    ? 'bg-emerald-600 shadow-xs'
-                    : 'bg-red-700 hover:bg-red-800 shadow-xs'
+                    ? 'bg-emerald-600 shadow-sm'
+                    : 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 shadow-sm'
                 }`}
               >
                 {copied ? (
@@ -1471,7 +1783,7 @@ export function ConverterWorkspace({
                 key={sym}
                 type="button"
                 onClick={() => handleInsertSymbol(sym)}
-                className="font-nepali min-h-[32px] min-w-[32px] rounded-md bg-slate-100/80 px-2 py-1 text-sm font-medium text-slate-800 transition-colors hover:bg-red-50 hover:text-red-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                className="font-nepali min-h-[32px] min-w-[32px] rounded-md border border-slate-200/90 border-b-2 bg-slate-50 px-2 py-1 text-sm font-semibold text-slate-800 transition-all hover:border-red-300 hover:bg-red-50 hover:text-red-700 active:translate-y-[1px] active:border-b dark:border-slate-700 dark:border-b-slate-600 dark:bg-slate-800/90 dark:text-slate-100 dark:hover:border-red-500/60 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               >
                 {sym}
               </button>
@@ -1497,15 +1809,42 @@ export function ConverterWorkspace({
           </button>
         </div>
 
+        {showInspector && (
+          <CodeInspectorDrawer
+            text={displayedOutput || sourceUnicodeText || inputText}
+            lang={lang}
+          />
+        )}
+
         {showAltPalette && (
-          <div className="mt-3 rounded-xl bg-slate-50/80 p-3 dark:bg-slate-950/70">
-            <div className="mb-2 text-xs text-slate-600 dark:text-slate-400">
-              {lang === 'ne'
-                ? 'किबोर्डमा Alt थिचेर नम्बर (जस्तै Alt+0170) टाइप गर्नुहोस् वा तलको अक्षरमा क्लिक गर्नुहोस्:'
-                : 'Hold Alt + type digits (e.g. Alt+0170) in the editor, or click any shortcut below to insert:'}
+          <div className="mt-3 rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/70">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400">
+              <span>
+                {lang === 'ne'
+                  ? 'किबोर्डमा Alt थिचेर नम्बर (जस्तै Alt+0170) टाइप गर्नुहोस्, वा यहाँ कोड खोजेर Enter/Click गर्नुहोस्:'
+                  : 'Hold Alt + digits (e.g. Alt+0170) in the editor, or search & press Enter below:'}
+              </span>
+              <input
+                type="search"
+                value={altSearch}
+                onChange={(e) => setAltSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && filteredAltCodes[0]) {
+                    e.preventDefault();
+                    const first = filteredAltCodes[0];
+                    handleInsertSymbol(
+                      isLegacySourceMode && !preetiVisualTyping
+                        ? first.asciiChar
+                        : first.unicode,
+                    );
+                  }
+                }}
+                placeholder={lang === 'ne' ? 'कोड खोज्नुहोस् (0170, ङ)...' : 'Filter 0170, om, jha...'}
+                className="font-mono-tabular h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-900 focus:border-red-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              />
             </div>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-              {PREETI_ALT_CODES.map((item) => (
+            <div className="grid max-h-[260px] grid-cols-2 gap-1.5 overflow-y-auto sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+              {filteredAltCodes.map((item) => (
                 <button
                   key={item.code}
                   type="button"
@@ -1530,6 +1869,20 @@ export function ConverterWorkspace({
           </div>
         )}
       </div>
+
+      <CommandPaletteModal
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        lang={lang}
+        onSwitchMode={onModeChange}
+        onRunAction={handlePaletteAction}
+        onInsertAltCode={(unicode, asciiChar) =>
+          handleInsertSymbol(
+            isLegacySourceMode && !preetiVisualTyping ? asciiChar : unicode,
+          )
+        }
+        onApplyTemplate={handleApplyTemplate}
+      />
     </section>
   );
 }
